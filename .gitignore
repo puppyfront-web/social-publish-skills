@@ -1,0 +1,40 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Python (legacy / tooling)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# IDE
+.idea/
+.vscode/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.tsbuildinfo
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Playwright
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+
+# Logs & temp
+*.log
+/tmp/
+
+# 构建产物（仓库只提交源码；使用前执行 npm run build）
+dist/

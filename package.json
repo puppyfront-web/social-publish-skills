@@ -1,0 +1,28 @@
+{
+  "name": "social-publish-skills",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Standalone agent skills + TypeScript publish engine (Playwright). No third-party upload repo dependency.",
+  "type": "module",
+  "bin": {
+    "social-publish": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc && cp src/stealth.min.js dist/stealth.min.js",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js",
+    "publish-engine": "node dist/cli.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "commander": "^13.1.0",
+    "playwright": "^1.50.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

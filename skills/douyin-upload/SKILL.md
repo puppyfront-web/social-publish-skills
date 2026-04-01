@@ -1,0 +1,54 @@
+---
+name: douyin-upload
+description: 当 agent 需要编排抖音视频的登录校验、cookie 持久化与发布进度可视化时使用。本仓库为独立 social-publish-skills，抖音 TypeScript 引擎已通过 Playwright 完整实现。
+---
+
+# 抖音上传 Skill
+
+本仓库 **不依赖** 任何外部上传项目；抖音执行入口为 **`social-publish douyin`（Node CLI）**，与视频号、快手共用同一 CLI。拉取源码后需在本仓库根目录执行 `npm install`、`npx playwright install chromium`、`npm run build` 后再调用（见 `references/runtime-requirements.md`）。
+
+## 当前状态
+
+- **引擎**：`src/platforms/douyin.ts` — 已完整实现（Playwright + TypeScript）
+- **功能**：cookie 校验 / QR 扫码登录 / 视频上传 / 标题描述话题 / 定时发布
+
+## CLI 用法
+
+```bash
+# 校验 cookie
+social-publish douyin check --account <name>
+
+# 扫码登录（自动弹出浏览器；扫码成功后由引擎轮询检测，一般无需再点 Inspector Resume）
+social-publish douyin login --account <name>
+# 若需纯手动结束：SOCIAL_PUBLISH_LOGIN_STDIN=1（终端按 Enter）或 SOCIAL_PUBLISH_LOGIN_NO_POLL=1（仅 Inspector Resume）
+
+# 上传视频
+social-publish douyin upload \
+  --account <name> \
+  --file /path/to/video.mp4 \
+  --title "标题" \
+  --desc "描述" \
+  --tags "话题一,话题二" \
+  --schedule "2026-04-10 10:00"
+```
+
+## 元数据约定
+
+- `title`：作品标题（最多 30 字符）
+- `description`：作品描述（默认同标题）
+- `tags`：逗号分隔的话题列表
+
+## cookie 持久化策略
+
+- 路径：`$SOCIAL_PUBLISH_DATA_DIR/cookies/douyin/<account>.json`
+- `upload` 为**有头**浏览器；若上传页需重新登录会**就地扫码**；成功后写回 `storageState`；`check` 为无头粗验（与实际上传页态可能不完全一致）
+
+## 发布进度可视化协议
+
+8 阶段：`INIT` → `COOKIE_CHECK` → `COOKIE_REFRESH` → `OPEN_PUBLISH_PAGE` → `UPLOAD_START` → `UPLOAD_TRANSFERRING` → `PUBLISHING` → `DONE`
+
+## 参考文档
+
+- `references/runtime-requirements.md`
+- `references/cli-contract.md`
+- `references/troubleshooting.md`

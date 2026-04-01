@@ -1,0 +1,53 @@
+---
+name: kuaishou-upload
+description: 当 agent 需要编排快手视频的登录校验、cookie 持久化与发布进度可视化时使用。本仓库为独立 social-publish-skills，快手 TypeScript 引擎已通过 Playwright 完整实现。
+---
+
+# 快手上传 Skill
+
+本仓库 **不依赖** 外部上传项目；快手执行入口为 **`social-publish kuaishou`（Node CLI）**，与抖音、视频号共用同一 CLI。拉取源码后需在本仓库根目录执行 `npm install`、`npx playwright install chromium`、`npm run build` 后再调用（见 `references/runtime-requirements.md`）。
+
+## 当前状态
+
+- **引擎**：`src/platforms/kuaishou.ts` — 已完整实现（Playwright + TypeScript）
+- **功能**：cookie 校验 / QR 扫码登录 / 视频上传 / 描述话题 / 定时发布 / 引导遮罩关闭
+
+## CLI 用法
+
+```bash
+# 校验 cookie
+social-publish kuaishou check --account <name>
+
+# 扫码登录
+social-publish kuaishou login --account <name>
+
+# 上传视频
+social-publish kuaishou upload \
+  --account <name> \
+  --file /path/to/video.mp4 \
+  --title "标题" \
+  --desc "描述" \
+  --tags "话题一,话题二" \
+  --schedule "2026-04-10 10:00"
+```
+
+## 元数据约定
+
+- `title`：视频标题
+- `description`：描述内容（默认同标题）
+- `tags`：逗号分隔的话题（最多 3 个）
+
+## cookie 持久化策略
+
+- 路径：`$SOCIAL_PUBLISH_DATA_DIR/cookies/kuaishou/<account>.json`
+- `upload` 使用**有头**浏览器；若上传页未登录会跳转扫码，成功后写回 `storageState`；`check` 仍可用无头粗验（与实际上传态可能不完全一致）
+
+## 发布进度可视化协议
+
+8 阶段：`INIT` → `COOKIE_CHECK` → `COOKIE_REFRESH` → `OPEN_PUBLISH_PAGE` → `UPLOAD_START` → `UPLOAD_TRANSFERRING` → `PUBLISHING` → `DONE`
+
+## 参考文档
+
+- `references/runtime-requirements.md`
+- `references/cli-contract.md`
+- `references/troubleshooting.md`

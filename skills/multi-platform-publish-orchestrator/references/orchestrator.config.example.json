@@ -1,0 +1,32 @@
+{
+  "data_dir": "/optional/absolute/path/for/cookies",
+  "tasks": [
+    {
+      "platform": "tencent",
+      "account": "main_account",
+      "video_file": "/absolute/path/to/video.mp4",
+      "title": "示例标题",
+      "tags": "话题一,话题二",
+      "schedule": "",
+      "draft": false
+    },
+    {
+      "platform": "douyin",
+      "account": "main_account",
+      "video_file": "/absolute/path/to/video.mp4",
+      "title": "抖音示例标题",
+      "description": "这是一段描述",
+      "tags": "话题一,话题二",
+      "schedule": ""
+    },
+    {
+      "platform": "kuaishou",
+      "account": "main_account",
+      "video_file": "/absolute/path/to/video.mp4",
+      "title": "快手示例标题",
+      "description": "这是一段描述",
+      "tags": "话题一,话题二",
+      "schedule": ""
+    }
+  ]
+}
