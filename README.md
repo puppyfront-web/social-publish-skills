@@ -4,7 +4,7 @@
 
 版本见 `VERSION` 与 `package.json`。
 
-**给其他用户**：本仓库**不提交** `dist/`。拉取后在本目录执行一次 `npm install`、`npx playwright install chromium`、`npm run build`，即可使用 `node dist/cli.js …` 或把 `skills/` 下的 `SKILL.md` 交给 Agent 引用（Agent 需在同一仓库根目录按上述命令构建后再调 CLI）。
+**给其他用户**：本仓库**不提交** `dist/`。拉取后在本目录执行一次 `npm install`、`npx playwright install chromium`、`npm run build`，即可使用 `node dist/cli.js …` 或把 `skills/` 下的 `SKILL.md` 交给 Agent 引用（Agent 需在同一仓库根目录按上述命令构建后再调 CLI）。**给 AI / Cursor 等**：根目录 **`AGENTS.md`** 为内置操作说明，便于模型按统一流程调用 CLI。
 
 ## 功能状态
 
