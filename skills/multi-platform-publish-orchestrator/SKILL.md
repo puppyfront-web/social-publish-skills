@@ -5,6 +5,19 @@ description: 当 agent 需要按 JSON 配置顺序执行多平台发布、统一
 
 # 多平台发布统一调度 Skill
 
+## Agent 执行规则（重要）
+
+- 默认由 Agent 在仓库根目录**直接执行命令**，不要让用户手动复制粘贴命令。
+- 只有在必须人工完成的步骤（扫码、短信验证码、账号确认、终端按 Enter、Inspector Resume）才请求用户介入。
+- 若缺少 `dist/cli.js` 或依赖未安装，Agent 先自动执行 `npm install`、`npx playwright install chromium`、`npm run build`，再继续业务命令。
+
+## 标准执行模板（全自动优先）
+
+1. 在仓库根目录检查 `dist/cli.js` 是否可用。
+2. 若不可用，自动执行 `npm install`、`npx playwright install chromium`、`npm run build`。
+3. 自动执行 `node dist/cli.js orchestrate --config <path>` 或 `verify-scan-login`。
+4. 仅在扫码、Inspector Resume 或显式人工确认时暂停并请求用户操作；完成后由 Agent 继续后续步骤。
+
 ## 执行入口
 
 在 **social-publish-skills** 根目录：

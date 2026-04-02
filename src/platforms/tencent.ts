@@ -21,6 +21,12 @@ import { resolveTencentCookiePath } from "../paths.js";
 
 const CREATE_URL = "https://channels.weixin.qq.com/platform/post/create";
 
+function formatDurationZh(ms: number): string {
+  if (ms % 60_000 === 0) return `${ms / 60_000} 分钟`;
+  const sec = Math.floor(ms / 1000);
+  return `${sec} 秒`;
+}
+
 /** 发表页可能被重定向到 /platform 首页，需再次进入 create */
 async function ensureTencentPostCreatePage(page: Page): Promise<void> {
   const onCreate = () => page.url().includes("/post/create");
@@ -86,14 +92,17 @@ export async function cookieAuth(storagePath: string): Promise<boolean> {
       waitUntil: "domcontentloaded",
       timeout: 60_000,
     });
-    try {
-      await page
-        .locator('div.title-name:has-text("微信小店")')
-        .waitFor({ state: "visible", timeout: 5000 });
-      return false;
-    } catch {
-      return true;
-    }
+    await sleep(1500);
+    const url = page.url();
+    if (url.includes("/login")) return false;
+    if (!url.includes("channels.weixin.qq.com/platform")) return false;
+    const scanLoginVisible = await page
+      .getByText("扫码登录", { exact: true })
+      .first()
+      .isVisible()
+      .catch(() => false);
+    if (scanLoginVisible) return false;
+    return true;
   } finally {
     await browser.close();
   }
@@ -103,6 +112,52 @@ export async function cookieAuth(storagePath: string): Promise<boolean> {
 // Python 原版：打开 channels.weixin.qq.com → page.pause() → 保存 storageState
 // 二维码由页面自然显示（iframe 中的微信扫码），不需要额外选择器操作
 
+async function waitUntilTencentLoggedIn(page: Page): Promise<void> {
+  const rawTimeout = process.env.SOCIAL_PUBLISH_TENCENT_LOGIN_TIMEOUT_MS;
+  const parsedTimeout = rawTimeout ? Number(rawTimeout) : NaN;
+  const timeoutMs =
+    Number.isFinite(parsedTimeout) && parsedTimeout >= 30_000
+      ? Math.floor(parsedTimeout)
+      : 300_000;
+  const timeoutLabel = formatDurationZh(timeoutMs);
+  const pollMs = 500;
+  const needStable = 3;
+  const start = Date.now();
+  let stable = 0;
+  console.log(
+    `[tencent] 请在 ${timeoutLabel} 内完成扫码登录，超时将回退到手动确认（Inspector Resume / 终端回车）`
+  );
+  console.log("[tencent] 正在轮询登录状态，扫码成功后将自动继续…");
+
+  while (Date.now() - start < timeoutMs) {
+    const url = page.url();
+    const onChannels = url.includes("channels.weixin.qq.com/platform");
+    const onLogin = url.includes("/login");
+    const scanLoginVisible = await page
+      .getByText("扫码登录", { exact: true })
+      .first()
+      .isVisible()
+      .catch(() => false);
+
+    if (onChannels && !onLogin && !scanLoginVisible) {
+      stable += 1;
+      if (stable >= needStable) {
+        await sleep(800);
+        console.log("[tencent] 已检测到登录成功");
+        return;
+      }
+    } else {
+      stable = 0;
+    }
+    await sleep(pollMs);
+  }
+
+  console.warn(
+    `[tencent] 自动检测超时（${timeoutLabel}），回退到手动模式`
+  );
+  await waitForUserLoginComplete(page);
+}
+
 export async function loginAndSaveCookie(storagePath: string): Promise<void> {
   fs.mkdirSync(path.dirname(storagePath), { recursive: true });
   const browser = await launchBrowser(false);
@@ -111,7 +166,12 @@ export async function loginAndSaveCookie(storagePath: string): Promise<void> {
   const page = await ctx.newPage();
   await gotoLoginPage(page, "https://channels.weixin.qq.com");
   console.log("请在浏览器中用微信扫码登录。");
-  await waitForUserLoginComplete(page);
+  if (process.env.SOCIAL_PUBLISH_LOGIN_STDIN === "1") {
+    await waitForUserLoginComplete(page);
+  } else {
+    await waitUntilTencentLoggedIn(page);
+  }
+  await sleep(2000);
   await ctx.storageState({ path: storagePath });
   await browser.close();
 }

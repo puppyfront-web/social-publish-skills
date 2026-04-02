@@ -13,7 +13,7 @@ npx playwright install chromium
 npm run build
 ```
 
-- CLI：`node dist/cli.js kuaishou check|login|upload …`（或 `npx social-publish kuaishou …` 若已 `npm link` / 全局安装本包）
+- CLI：`node dist/cli.js kuaishou check|login|upload …`
 
 ## Cookie 目录
 
