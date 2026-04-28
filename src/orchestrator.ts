@@ -2,19 +2,26 @@ import fs from "node:fs";
 import { publishTencentVideo } from "./platforms/tencent.js";
 import { publishDouyinVideo } from "./platforms/douyin.js";
 import { publishKuaishouVideo } from "./platforms/kuaishou.js";
+import { publishWechatArticle } from "./platforms/wechatmp.js";
+import { logPublishResult, type PublishResult } from "./publish-result.js";
 
 const SCHEDULE = /^(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})$/;
 
 export type OrchestratorTask = {
   platform: string;
   account: string;
-  video_file: string;
-  title: string;
+  title?: string;
+  video_file?: string;
   description?: string;
   tags?: string;
   schedule?: string;
   category?: string;
   draft?: boolean;
+  source?: string;
+  source_type?: "auto" | "markdown" | "github" | "url";
+  author?: string;
+  digest?: string;
+  publish?: boolean;
 };
 
 export type OrchestratorConfig = {
@@ -46,6 +53,14 @@ function parseSchedule(raw?: string): Date | null {
   );
 }
 
+function expectString(task: OrchestratorTask, field: keyof OrchestratorTask): string {
+  const value = task[field];
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`Invalid task for platform "${task.platform}": missing "${String(field)}"`);
+  }
+  return value.trim();
+}
+
 export async function runFromConfigFile(configPath: string): Promise<void> {
   const text = fs.readFileSync(configPath, "utf-8");
   const cfg = JSON.parse(text) as OrchestratorConfig;
@@ -55,10 +70,17 @@ export async function runFromConfigFile(configPath: string): Promise<void> {
     const platform = t.platform.toLowerCase();
     const tags = parseTags(t.tags);
     const schedule = parseSchedule(t.schedule) ?? undefined;
+    let result: PublishResult;
 
     switch (platform) {
       case "tencent":
-        await publishTencentVideo({
+        if (!t.video_file) {
+          throw new Error(`Invalid task for platform "${t.platform}": missing "video_file"`);
+        }
+        if (!t.title) {
+          throw new Error(`Invalid task for platform "${t.platform}": missing "title"`);
+        }
+        result = await publishTencentVideo({
           account: t.account,
           videoFile: t.video_file,
           title: t.title,
@@ -69,7 +91,13 @@ export async function runFromConfigFile(configPath: string): Promise<void> {
         });
         break;
       case "douyin":
-        await publishDouyinVideo({
+        if (!t.video_file) {
+          throw new Error(`Invalid task for platform "${t.platform}": missing "video_file"`);
+        }
+        if (!t.title) {
+          throw new Error(`Invalid task for platform "${t.platform}": missing "title"`);
+        }
+        result = await publishDouyinVideo({
           account: t.account,
           videoFile: t.video_file,
           title: t.title,
@@ -79,7 +107,13 @@ export async function runFromConfigFile(configPath: string): Promise<void> {
         });
         break;
       case "kuaishou":
-        await publishKuaishouVideo({
+        if (!t.video_file) {
+          throw new Error(`Invalid task for platform "${t.platform}": missing "video_file"`);
+        }
+        if (!t.title) {
+          throw new Error(`Invalid task for platform "${t.platform}": missing "title"`);
+        }
+        result = await publishKuaishouVideo({
           account: t.account,
           videoFile: t.video_file,
           title: t.title,
@@ -88,8 +122,21 @@ export async function runFromConfigFile(configPath: string): Promise<void> {
           schedule,
         });
         break;
+      case "wechatmp":
+        result = await publishWechatArticle({
+          account: t.account,
+          source: expectString(t, "source"),
+          sourceType: t.source_type ?? "auto",
+          title: expectString(t, "title"),
+          author: t.author,
+          digest: t.digest,
+          publish: Boolean(t.publish),
+        });
+        break;
       default:
         throw new Error(`Unknown platform: ${t.platform}`);
     }
+
+    logPublishResult(result);
   }
 }

@@ -18,8 +18,22 @@ import {
 } from "../browser.js";
 import { emit } from "../progress.js";
 import { resolveTencentCookiePath } from "../paths.js";
+import { type PublishResult } from "../publish-result.js";
 
 const CREATE_URL = "https://channels.weixin.qq.com/platform/post/create";
+const TENCENT_UPLOAD_TRIGGER_TEXTS = [
+  "上传视频",
+  "选择视频",
+  "从相册选择",
+  "点击上传",
+];
+const TENCENT_BLOCKING_TEXTS = [
+  "扫码登录",
+  "安全验证",
+  "环境异常",
+  "访问受限",
+  "重新登录",
+];
 
 function formatDurationZh(ms: number): string {
   if (ms % 60_000 === 0) return `${ms / 60_000} 分钟`;
@@ -27,24 +41,179 @@ function formatDurationZh(ms: number): string {
   return `${sec} 秒`;
 }
 
+/**
+ * 视频号发表页是 SPA：domcontentloaded 后仍可能因鉴权被重定向到 login。
+ * 轮询直到路径稳定为 /post/create 且无「扫码登录」遮罩，或明确进入 /login。
+ */
+async function waitUntilTencentCreateOrLoginResolved(
+  page: Page,
+  timeoutMs: number
+): Promise<"create" | "login" | "other"> {
+  const start = Date.now();
+  let stableOk = 0;
+  while (Date.now() - start < timeoutMs) {
+    const url = page.url();
+    if (url.includes("/login")) return "login";
+    if (url.includes("/post/create")) {
+      const scanLoginVisible = await page
+        .getByText("扫码登录", { exact: true })
+        .first()
+        .isVisible()
+        .catch(() => false);
+      if (!scanLoginVisible) {
+        stableOk += 1;
+        if (stableOk >= 4) return "create";
+      } else {
+        stableOk = 0;
+      }
+    } else {
+      stableOk = 0;
+    }
+    await sleep(500);
+  }
+  const url = page.url();
+  if (url.includes("/login")) return "login";
+  if (url.includes("/post/create")) return "create";
+  return "other";
+}
+
 /** 发表页可能被重定向到 /platform 首页，需再次进入 create */
 async function ensureTencentPostCreatePage(page: Page): Promise<void> {
   const onCreate = () => page.url().includes("/post/create");
   for (let i = 0; i < 3; i++) {
-    if (onCreate()) return;
-    await page.goto(CREATE_URL, { waitUntil: "load", timeout: 120_000 });
-    try {
-      await page.waitForURL(/\/platform\/post\/create/, { timeout: 90_000 });
-    } catch {
-      /* 继续重试 */
+    if (onCreate()) {
+      const scan = await page
+        .getByText("扫码登录", { exact: true })
+        .first()
+        .isVisible()
+        .catch(() => false);
+      if (!scan) return;
     }
-    await sleep(2000);
+    await page.goto(CREATE_URL, {
+      waitUntil: "domcontentloaded",
+      timeout: 120_000,
+    });
+    const outcome = await waitUntilTencentCreateOrLoginResolved(page, 90_000);
+    if (outcome === "login") {
+      throw new Error(
+        `无法进入视频发表页（会话失效或需重新登录），当前: ${page.url()}`
+      );
+    }
+    await sleep(1500);
   }
   if (!onCreate()) {
     throw new Error(
       `无法进入视频发表页（期望路径含 /post/create），当前: ${page.url()}`
     );
   }
+}
+
+async function collectTencentUploadDiagnostics(page: Page): Promise<string> {
+  const visibleTriggers: string[] = [];
+  for (const text of TENCENT_UPLOAD_TRIGGER_TEXTS) {
+    const visible = await page
+      .getByText(text, { exact: false })
+      .first()
+      .isVisible()
+      .catch(() => false);
+    if (visible) visibleTriggers.push(text);
+  }
+
+  const blockingTexts: string[] = [];
+  for (const text of TENCENT_BLOCKING_TEXTS) {
+    const visible = await page
+      .getByText(text, { exact: false })
+      .first()
+      .isVisible()
+      .catch(() => false);
+    if (visible) blockingTexts.push(text);
+  }
+
+  const frameUrls = page
+    .frames()
+    .map((frame) => frame.url())
+    .filter((url) => Boolean(url) && url !== "about:blank")
+    .slice(0, 5);
+
+  let frameFileInputs = 0;
+  for (const frame of page.frames()) {
+    frameFileInputs += await frame
+      .locator('input[type="file"]')
+      .count()
+      .catch(() => 0);
+  }
+
+  const title = await page.title().catch(() => "");
+  const pageFileInputs = await page
+    .locator('input[type="file"]')
+    .count()
+    .catch(() => 0);
+
+  return [
+    `url=${page.url()}`,
+    title ? `title=${JSON.stringify(title)}` : "",
+    `page_file_inputs=${pageFileInputs}`,
+    `frame_file_inputs=${frameFileInputs}`,
+    blockingTexts.length > 0
+      ? `blocking=${blockingTexts.join("|")}`
+      : "blocking=none",
+    visibleTriggers.length > 0
+      ? `triggers=${visibleTriggers.join("|")}`
+      : "triggers=none",
+    frameUrls.length > 0 ? `frames=${frameUrls.join(",")}` : "frames=none",
+  ]
+    .filter(Boolean)
+    .join(" ; ");
+}
+
+async function trySetTencentVideoFile(
+  page: Page,
+  videoPath: string
+): Promise<boolean> {
+  const pageFileInput = page.locator('input[type="file"]').first();
+  if ((await pageFileInput.count()) > 0) {
+    await pageFileInput.setInputFiles(videoPath, {
+      timeout: TENCENT_FILE_TIMEOUT,
+    });
+    return true;
+  }
+
+  const videoInputs = page.locator(
+    'input[type="file"][accept*="video"], input[accept*="mp4"]'
+  );
+  if ((await videoInputs.count()) > 0) {
+    await videoInputs.first().setInputFiles(videoPath, {
+      timeout: TENCENT_FILE_TIMEOUT,
+    });
+    return true;
+  }
+
+  for (const frame of page.frames()) {
+    const frameInput = frame.locator('input[type="file"]').first();
+    if ((await frameInput.count()) > 0) {
+      await frameInput.setInputFiles(videoPath, {
+        timeout: TENCENT_FILE_TIMEOUT,
+      });
+      return true;
+    }
+  }
+
+  for (const text of TENCENT_UPLOAD_TRIGGER_TEXTS) {
+    const btn = page.getByText(text, { exact: false }).first();
+    if ((await btn.count()) === 0) continue;
+    try {
+      const [chooser] = await Promise.all([
+        page.waitForEvent("filechooser", { timeout: 3_000 }),
+        btn.click({ timeout: 2_000 }),
+      ]);
+      await chooser.setFiles(videoPath);
+      return true;
+    } catch {
+      /* try next candidate */
+    }
+  }
+
+  return false;
 }
 
 const SHORT_TITLE_SPECIAL = new Set([
@@ -79,11 +248,12 @@ export function formatShortTitle(origin: string): string {
   return s;
 }
 
-// ─── cookie 校验（与 Python cookie_auth 完全一致）──────────────
+// ─── cookie 校验（与 Python cookie_auth 语义对齐；增加 SPA 鉴权等待）──────────────
 
 export async function cookieAuth(storagePath: string): Promise<boolean> {
   if (!fs.existsSync(storagePath)) return false;
-  const browser = await launchBrowser(true);
+  // 无头校验易被视频号风控/中间态误判；可用 SOCIAL_PUBLISH_HEADLESS=0 有头校验。
+  const browser = await launchBrowser(isHeadless());
   try {
     const ctx = await browser.newContext({ storageState: storagePath });
     await applyStealthScript(ctx);
@@ -92,16 +262,11 @@ export async function cookieAuth(storagePath: string): Promise<boolean> {
       waitUntil: "domcontentloaded",
       timeout: 60_000,
     });
-    await sleep(1500);
+    const outcome = await waitUntilTencentCreateOrLoginResolved(page, 60_000);
+    if (outcome === "login") return false;
+    if (outcome !== "create") return false;
     const url = page.url();
-    if (url.includes("/login")) return false;
     if (!url.includes("channels.weixin.qq.com/platform")) return false;
-    const scanLoginVisible = await page
-      .getByText("扫码登录", { exact: true })
-      .first()
-      .isVisible()
-      .catch(() => false);
-    if (scanLoginVisible) return false;
     return true;
   } finally {
     await browser.close();
@@ -196,64 +361,32 @@ async function setTencentVideoFile(page: Page, videoPath: string): Promise<void>
   await page.waitForLoadState("load", { timeout: 90_000 }).catch(() => {});
   await page.waitForLoadState("networkidle", { timeout: 45_000 }).catch(() => {});
   await sleep(2000);
-  if (!page.url().includes("/post/create")) {
-    await ensureTencentPostCreatePage(page);
-    await sleep(1500);
-  }
+  const deadline = Date.now() + TENCENT_FILE_TIMEOUT;
+  let lastLogAt = 0;
 
-  const pickFileInput = () => page.locator('input[type="file"]');
+  while (Date.now() < deadline) {
+    if (!page.url().includes("/post/create")) {
+      await ensureTencentPostCreatePage(page);
+      await sleep(1500);
+    }
 
-  try {
-    await pickFileInput().first().waitFor({
-      state: "attached",
-      timeout: TENCENT_FILE_TIMEOUT,
-    });
-    await pickFileInput()
-      .first()
-      .setInputFiles(videoPath, { timeout: TENCENT_FILE_TIMEOUT });
-    return;
-  } catch {
-    /* try fallbacks */
-  }
-
-  const videoInputs = page.locator(
-    'input[type="file"][accept*="video"], input[accept*="mp4"]'
-  );
-  if ((await videoInputs.count()) > 0) {
-    await videoInputs
-      .first()
-      .setInputFiles(videoPath, { timeout: TENCENT_FILE_TIMEOUT });
-    return;
-  }
-
-  for (const frame of page.frames()) {
-    const fin = frame.locator('input[type="file"]');
-    if ((await fin.count()) > 0) {
-      await fin
-        .first()
-        .setInputFiles(videoPath, { timeout: TENCENT_FILE_TIMEOUT });
+    if (await trySetTencentVideoFile(page, videoPath)) {
       return;
     }
-  }
 
-  const triggerTexts = ["上传视频", "选择视频", "从相册选择", "点击上传"];
-  for (const text of triggerTexts) {
-    const btn = page.getByText(text, { exact: false }).first();
-    if ((await btn.count()) === 0) continue;
-    try {
-      const [chooser] = await Promise.all([
-        page.waitForEvent("filechooser", { timeout: 15_000 }),
-        btn.click({ timeout: 5000 }),
-      ]);
-      await chooser.setFiles(videoPath);
-      return;
-    } catch {
-      /* next */
+    if (Date.now() - lastLogAt >= 10_000) {
+      console.log(
+        `[tencent] 等待上传控件中: ${await collectTencentUploadDiagnostics(page)}`
+      );
+      lastLogAt = Date.now();
     }
+
+    await sleep(1000);
   }
 
+  const diagnostics = await collectTencentUploadDiagnostics(page);
   throw new Error(
-    `视频号发表页未找到上传控件（当前 URL: ${page.url()}）。可尝试：SOCIAL_PUBLISH_HEADLESS=0 有界面重试；确认已进入发表页且未被安全验证拦截。`
+    `视频号发表页未找到上传控件。${diagnostics}。可尝试：SOCIAL_PUBLISH_HEADLESS=0 有界面重试；确认已进入发表页且未被安全验证拦截。`
   );
 }
 
@@ -408,7 +541,9 @@ async function clickPublish(page: Page, draft: boolean): Promise<void> {
   }
 }
 
-export async function publishTencentVideo(opts: TencentPublishOptions): Promise<void> {
+export async function publishTencentVideo(
+  opts: TencentPublishOptions
+): Promise<PublishResult> {
   const storagePath = resolveTencentCookiePath(opts.account);
   const videoPath = path.resolve(opts.videoFile);
   if (!fs.existsSync(videoPath)) throw new Error(`Video not found: ${videoPath}`);
@@ -437,7 +572,7 @@ export async function publishTencentVideo(opts: TencentPublishOptions): Promise<
   try {
     emit(4, total, "OPEN_PUBLISH_PAGE", CREATE_URL);
     await page.goto(CREATE_URL, {
-      waitUntil: "load",
+      waitUntil: "domcontentloaded",
       timeout: 120_000,
     });
     await ensureTencentPostCreatePage(page);
@@ -459,6 +594,10 @@ export async function publishTencentVideo(opts: TencentPublishOptions): Promise<
 
     await ctx.storageState({ path: storagePath });
     emit(8, total, "DONE", "成功", true);
+    return {
+      platform: "tencent",
+      reviewUrl: page.url(),
+    };
   } finally {
     await ctx.close();
     await browser.close();

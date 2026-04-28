@@ -23,3 +23,7 @@ export function resolveDouyinCookiePath(accountOrPath: string): string {
 export function resolveKuaishouCookiePath(accountOrPath: string): string {
   return resolveCookiePath("kuaishou", accountOrPath);
 }
+
+export function resolveWechatmpCookiePath(accountOrPath: string): string {
+  return resolveCookiePath("wechatmp", accountOrPath);
+}

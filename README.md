@@ -1,12 +1,13 @@
 # social-publish-skills
 
-一个基于 TypeScript + Playwright 的短视频发布工具集，用于在本机完成扫码登录、登录态校验和视频上传。
+一个基于 TypeScript + Playwright 的社媒发布工具集，用于在本机完成扫码登录、登录态校验和内容发布（短视频 + 公众号图文）。
 
 目前支持的平台：
 
 - 微信视频号 `tencent`
 - 抖音 `douyin`
 - 快手 `kuaishou`
+- 微信公众号图文 `wechatmp`
 
 暂不支持：
 
@@ -19,6 +20,7 @@
 - 检查本机已有 cookie 是否仍然可用
 - 将一个视频发布到单个平台
 - 按顺序将一个视频发布到多个平台
+- 自动将 Markdown / GitHub / 网页文章格式化后发布到微信公众号（默认保存草稿）
 
 ## 环境要求
 
@@ -111,6 +113,7 @@ npm run build
 - 视频号发布：`skills/tencent-upload/SKILL.md`
 - 抖音发布：`skills/douyin-upload/SKILL.md`
 - 快手发布：`skills/kuaishou-upload/SKILL.md`
+- 公众号图文发布：`skills/wechatmp-article-upload/SKILL.md`
 - 多平台顺序发布：`skills/multi-platform-publish-orchestrator/SKILL.md`
 
 ### 推荐做法
@@ -134,6 +137,7 @@ npm run build
 node dist/cli.js tencent login --account my_account
 node dist/cli.js douyin login --account my_account
 node dist/cli.js kuaishou login --account my_account
+node dist/cli.js wechatmp login --account my_account
 ```
 
 参数说明：
@@ -149,6 +153,7 @@ node dist/cli.js kuaishou login --account my_account
 node dist/cli.js tencent check --account my_account
 node dist/cli.js douyin check --account my_account
 node dist/cli.js kuaishou check --account my_account
+node dist/cli.js wechatmp check --account my_account
 ```
 
 ### 3. 发布单个平台
@@ -185,6 +190,36 @@ node dist/cli.js kuaishou upload \
   --tags "话题1,话题2"
 ```
 
+#### 微信公众号图文
+
+```bash
+node dist/cli.js wechatmp publish \
+  --account my_account \
+  --source /absolute/path/to/article.md \
+  --title "文章标题" \
+  --author "作者名"
+```
+
+GitHub / URL 来源示例：
+
+```bash
+node dist/cli.js wechatmp publish \
+  --account my_account \
+  --source https://github.com/owner/repo/blob/main/README.md \
+  --source-type github \
+  --title "从 GitHub 同步的文章"
+```
+
+```bash
+node dist/cli.js wechatmp publish \
+  --account my_account \
+  --source https://example.com/post/123 \
+  --source-type url \
+  --title "从网页提取的文章"
+```
+
+默认行为是保存草稿；若确认直接发布，可加 `--publish`。
+
 ### 4. 多平台顺序发布
 
 复制并修改示例配置：
@@ -199,12 +234,18 @@ cp skills/multi-platform-publish-orchestrator/references/orchestrator.config.exa
 node dist/cli.js orchestrate --config ./orchestrator.config.json
 ```
 
+说明：
+
+- `orchestrate` 支持混合任务：`tencent` / `douyin` / `kuaishou` / `wechatmp`
+- `wechatmp` 任务示例字段：`source`、`source_type`、`title`、`author`、`digest`、`publish`
+
 ## 常用命令
 
 ```bash
 node dist/cli.js <platform> login --account <name>
 node dist/cli.js <platform> check --account <name>
 node dist/cli.js <platform> upload [options]
+node dist/cli.js wechatmp publish --account <name> --source <path-or-url> --title "..."
 node dist/cli.js orchestrate --config /absolute/path/to/config.json
 ```
 
@@ -213,6 +254,7 @@ node dist/cli.js orchestrate --config /absolute/path/to/config.json
 - `tencent`
 - `douyin`
 - `kuaishou`
+- `wechatmp`（使用 `publish` 子命令）
 
 ## 常用参数
 
@@ -222,6 +264,9 @@ node dist/cli.js orchestrate --config /absolute/path/to/config.json
 - `--desc`：描述，仅抖音和快手支持
 - `--tags`：逗号分隔标签
 - `--schedule`：定时发布时间，格式为 `YYYY-MM-DD HH:mm`
+- `--source`：公众号文章来源（Markdown 绝对路径 / GitHub URL / 网页 URL）
+- `--source-type`：`auto|markdown|github|url`
+- `--publish`：公众号图文直接发布（默认保存草稿）
 
 ## 数据目录
 

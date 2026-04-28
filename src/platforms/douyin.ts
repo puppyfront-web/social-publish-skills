@@ -15,6 +15,7 @@ import {
 } from "../browser.js";
 import { emit } from "../progress.js";
 import { resolveDouyinCookiePath } from "../paths.js";
+import { type PublishResult } from "../publish-result.js";
 
 const UPLOAD_URL =
   "https://creator.douyin.com/creator-micro/content/upload";
@@ -376,7 +377,7 @@ async function clickPublishDouyin(page: Page): Promise<void> {
 
 export async function publishDouyinVideo(
   opts: DouyinPublishOptions
-): Promise<void> {
+): Promise<PublishResult> {
   const storagePath = resolveDouyinCookiePath(opts.account);
   const videoPath = path.resolve(opts.videoFile);
   if (!fs.existsSync(videoPath))
@@ -434,6 +435,10 @@ export async function publishDouyinVideo(
 
     await ctx.storageState({ path: storagePath });
     emit(8, total, "DONE", "成功", true);
+    return {
+      platform: "douyin",
+      reviewUrl: page.url(),
+    };
   } finally {
     await ctx.close();
     await browser.close();

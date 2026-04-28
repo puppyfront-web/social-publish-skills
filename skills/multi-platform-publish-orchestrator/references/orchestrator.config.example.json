@@ -27,6 +27,16 @@
       "description": "这是一段描述",
       "tags": "话题一,话题二",
       "schedule": ""
+    },
+    {
+      "platform": "wechatmp",
+      "account": "main_account",
+      "source": "/absolute/path/to/article.md",
+      "source_type": "markdown",
+      "title": "公众号示例标题",
+      "author": "作者名",
+      "digest": "一句话摘要",
+      "publish": false
     }
   ]
 }

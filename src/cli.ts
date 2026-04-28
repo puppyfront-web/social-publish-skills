@@ -16,10 +16,18 @@ import {
   publishKuaishouVideo,
 } from "./platforms/kuaishou.js";
 import {
+  cookieAuth as wechatmpCookieAuth,
+  loginAndSaveCookie as wechatmpLogin,
+  publishWechatArticle,
+  type WechatmpPublishOptions,
+} from "./platforms/wechatmp.js";
+import {
   resolveTencentCookiePath,
   resolveDouyinCookiePath,
   resolveKuaishouCookiePath,
+  resolveWechatmpCookiePath,
 } from "./paths.js";
+import { logPublishResult } from "./publish-result.js";
 import { runFromConfigFile } from "./orchestrator.js";
 
 /** 扫码登录落盘后，默认再跑一次无头 cookie 校验（可 --skip-verify 关闭）。 */
@@ -71,6 +79,17 @@ function parseSchedule(raw?: string): Date | undefined {
   );
 }
 
+function parseWechatSourceType(
+  raw?: string
+): WechatmpPublishOptions["sourceType"] {
+  const value = (raw ?? "auto").trim().toLowerCase();
+  if (value === "auto") return "auto";
+  if (value === "markdown") return "markdown";
+  if (value === "github") return "github";
+  if (value === "url") return "url";
+  throw new Error(`Invalid --source-type "${raw}". Use auto|markdown|github|url`);
+}
+
 const program = new Command();
 program
   .name("social-publish")
@@ -115,7 +134,7 @@ tencent
   .option("--category <c>", "原创类型（可选）")
   .option("--draft", "存草稿")
   .action(async (opts) => {
-    await publishTencentVideo({
+    const result = await publishTencentVideo({
       account: opts.account,
       videoFile: opts.file,
       title: opts.title,
@@ -124,6 +143,7 @@ tencent
       category: opts.category,
       draft: Boolean(opts.draft),
     });
+    logPublishResult(result);
   });
 
 // ─── 抖音 ──────────────────────────────────────────────────────
@@ -164,7 +184,7 @@ douyin
   .option("--tags <csv>", "逗号分隔话题")
   .option("--schedule <t>", "定时 YYYY-MM-DD HH:mm")
   .action(async (opts) => {
-    await publishDouyinVideo({
+    const result = await publishDouyinVideo({
       account: opts.account,
       videoFile: opts.file,
       title: opts.title,
@@ -172,6 +192,7 @@ douyin
       tags: parseTags(opts.tags),
       schedule: parseSchedule(opts.schedule),
     });
+    logPublishResult(result);
   });
 
 // ─── 快手 ──────────────────────────────────────────────────────
@@ -212,7 +233,7 @@ kuaishou
   .option("--tags <csv>", "逗号分隔话题")
   .option("--schedule <t>", "定时 YYYY-MM-DD HH:mm")
   .action(async (opts) => {
-    await publishKuaishouVideo({
+    const result = await publishKuaishouVideo({
       account: opts.account,
       videoFile: opts.file,
       title: opts.title,
@@ -220,6 +241,58 @@ kuaishou
       tags: parseTags(opts.tags),
       schedule: parseSchedule(opts.schedule),
     });
+    logPublishResult(result);
+  });
+
+// ─── 微信公众号图文 ────────────────────────────────────────────
+
+const wechatmp = program.command("wechatmp").description("微信公众号图文发布");
+
+wechatmp
+  .command("check")
+  .requiredOption("--account <name>", "账号名或 cookie JSON 路径")
+  .action(async (opts) => {
+    const p = resolveWechatmpCookiePath(opts.account);
+    const ok = await wechatmpCookieAuth(p);
+    console.log(ok ? "valid" : "invalid");
+    process.exit(ok ? 0 : 1);
+  });
+
+wechatmp
+  .command("login")
+  .requiredOption("--account <name>", "账号名")
+  .option("--skip-verify", "仅保存 storageState，保存后不跑无头校验")
+  .action(async (opts) => {
+    const p = resolveWechatmpCookiePath(opts.account);
+    await loginThenVerifyCookie({
+      label: "wechatmp",
+      path: p,
+      skipVerify: Boolean(opts.skipVerify),
+      login: wechatmpLogin,
+      check: wechatmpCookieAuth,
+    });
+  });
+
+wechatmp
+  .command("publish")
+  .requiredOption("--account <name>", "账号名")
+  .requiredOption("--source <pathOrUrl>", "文章来源：Markdown 绝对路径 / GitHub URL / 网页 URL")
+  .requiredOption("--title <t>", "文章标题")
+  .option("--author <name>", "作者（可选）")
+  .option("--digest <text>", "摘要（可选）")
+  .option("--source-type <type>", "auto|markdown|github|url，默认 auto")
+  .option("--publish", "直接发布（默认保存草稿）")
+  .action(async (opts) => {
+    const result = await publishWechatArticle({
+      account: opts.account,
+      source: opts.source,
+      sourceType: parseWechatSourceType(opts.sourceType),
+      title: opts.title,
+      author: opts.author,
+      digest: opts.digest,
+      publish: Boolean(opts.publish),
+    });
+    logPublishResult(result);
   });
 
 // ─── 三平台扫码登录链路验收（交互式，按顺序执行）────────────────
