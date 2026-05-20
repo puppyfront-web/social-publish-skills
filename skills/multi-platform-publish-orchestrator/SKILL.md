@@ -1,6 +1,6 @@
 ---
 name: multi-platform-publish-orchestrator
-description: 当 agent 需要按 JSON 配置顺序执行多平台发布、统一 cookie/进度阶段、并兼容 Linux/macOS/Windows 时使用。本仓库引擎为 TypeScript + Playwright，已实现 tencent / douyin / kuaishou / wechatmp 四个平台。
+description: 当 agent 需要按 JSON 配置顺序执行多平台发布、统一 cookie/进度阶段、并兼容 Linux/macOS/Windows 时使用。本仓库引擎为 TypeScript + Playwright，已实现 tencent / douyin / kuaishou / wechatmp / zhihu / baijiahao 六个平台。
 ---
 
 # 多平台发布统一调度 Skill
@@ -42,6 +42,8 @@ Shell 封装：`scripts/examples/run_orchestrate.sh`。
 - `src/platforms/douyin.ts`：抖音创作者平台
 - `src/platforms/kuaishou.ts`：快手创作者平台
 - `src/platforms/wechatmp.ts`：微信公众号图文
+- `src/platforms/zhihu.ts`：知乎文章
+- `src/platforms/baijiahao.ts`：百家号文章
 
 ## 已支持平台
 
@@ -51,6 +53,8 @@ Shell 封装：`scripts/examples/run_orchestrate.sh`。
 | 抖音 | `douyin` | `cookies/douyin/<account>.json` | 已实现 |
 | 快手 | `kuaishou` | `cookies/kuaishou/<account>.json` | 已实现 |
 | 微信公众号图文 | `wechatmp` | `cookies/wechatmp/<account>.json` | 已实现 |
+| 知乎文章 | `zhihu` | `cookies/zhihu/<account>.json` | 已实现 |
+| 百家号文章 | `baijiahao` | `cookies/baijiahao/<account>.json` | 已实现 |
 
 ## 扩展新平台
 

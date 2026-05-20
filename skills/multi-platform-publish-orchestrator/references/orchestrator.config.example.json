@@ -37,6 +37,22 @@
       "author": "作者名",
       "digest": "一句话摘要",
       "publish": false
+    },
+    {
+      "platform": "zhihu",
+      "account": "main_account",
+      "source": "/absolute/path/to/article.md",
+      "source_type": "markdown",
+      "title": "知乎示例标题",
+      "publish": false
+    },
+    {
+      "platform": "baijiahao",
+      "account": "main_account",
+      "source": "/absolute/path/to/article.md",
+      "source_type": "markdown",
+      "title": "百家号示例标题",
+      "publish": false
     }
   ]
 }

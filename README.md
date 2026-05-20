@@ -1,6 +1,6 @@
 # social-publish-skills
 
-一个基于 TypeScript + Playwright 的社媒发布工具集，用于在本机完成扫码登录、登录态校验和内容发布（短视频 + 公众号图文）。
+一个基于 TypeScript + Playwright 的社媒发布工具集，用于在本机完成扫码登录、登录态校验和内容发布（短视频 + 图文）。
 
 目前支持的平台：
 
@@ -8,11 +8,36 @@
 - 抖音 `douyin`
 - 快手 `kuaishou`
 - 微信公众号图文 `wechatmp`
+- 知乎文章 `zhihu`
+- 百家号文章 `baijiahao`
 
 暂不支持：
 
 - 小红书
 - B 站
+
+## Skill 可用性矩阵
+
+下面这张表按“仓库中是否有真实 CLI/平台实现”来区分，而不是只看 `skills/` 目录里有没有 `SKILL.md`。
+
+| Skill | 类型 | CLI / 实现状态 | 当前结论 |
+| --- | --- | --- | --- |
+| `skills/tencent-upload/SKILL.md` | 单平台视频发布 | 已实现：`tencent check|login|upload` | 可用 |
+| `skills/douyin-upload/SKILL.md` | 单平台视频发布 | 已实现：`douyin check|login|upload` | 可用 |
+| `skills/kuaishou-upload/SKILL.md` | 单平台视频发布 | 已实现：`kuaishou check|login|upload` | 可用 |
+| `skills/wechatmp-article-upload/SKILL.md` | 单平台图文发布 | 已实现：`wechatmp check|login|publish` | 可用 |
+| `skills/zhihu-article-upload/SKILL.md` | 单平台图文发布 | 已实现：`zhihu check|login|publish` | 可用 |
+| `skills/baijiahao-article-upload/SKILL.md` | 单平台图文发布 | 已实现：`baijiahao check|login|publish` | 可用 |
+| `skills/multi-platform-publish-orchestrator/SKILL.md` | 多平台编排 | 已实现：`orchestrate` / `verify-scan-login` | 可用 |
+| `skills/douyin-upload-prompt/SKILL.md` | 上传前文案补全 | 无独立 CLI，作为抖音上传前辅助流程使用 | 辅助可用 |
+| `skills/bilibili-upload/SKILL.md` | 单平台视频发布 | 未实现对应 CLI 子命令 | 占位，不可用 |
+| `skills/xiaohongshu-upload/SKILL.md` | 单平台图文 / 视频发布 | 未实现对应 CLI 子命令 | 占位，不可用 |
+
+补充说明：
+
+- `可用` 表示仓库里已经有对应的 `src/platforms/*.ts` 与 `node dist/cli.js ...` 子命令。
+- `辅助可用` 表示 skill 本身不是发布引擎，而是配合已实现平台一起使用。
+- `占位，不可用` 表示仅保留说明或参考模板，当前仓库不能直接执行。
 
 ## 适合什么场景
 
@@ -20,7 +45,7 @@
 - 检查本机已有 cookie 是否仍然可用
 - 将一个视频发布到单个平台
 - 按顺序将一个视频发布到多个平台
-- 自动将 Markdown / GitHub / 网页文章格式化后发布到微信公众号（默认保存草稿）
+- 自动将 Markdown / GitHub / 网页文章格式化后发布到微信公众号、知乎或百家号（默认保存草稿）
 
 ## 环境要求
 
@@ -114,6 +139,8 @@ npm run build
 - 抖音发布：`skills/douyin-upload/SKILL.md`
 - 快手发布：`skills/kuaishou-upload/SKILL.md`
 - 公众号图文发布：`skills/wechatmp-article-upload/SKILL.md`
+- 知乎文章发布：`skills/zhihu-article-upload/SKILL.md`
+- 百家号文章发布：`skills/baijiahao-article-upload/SKILL.md`
 - 多平台顺序发布：`skills/multi-platform-publish-orchestrator/SKILL.md`
 
 ### 推荐做法
@@ -138,6 +165,8 @@ node dist/cli.js tencent login --account my_account
 node dist/cli.js douyin login --account my_account
 node dist/cli.js kuaishou login --account my_account
 node dist/cli.js wechatmp login --account my_account
+node dist/cli.js zhihu login --account my_account
+node dist/cli.js baijiahao login --account my_account
 ```
 
 参数说明：
@@ -154,6 +183,8 @@ node dist/cli.js tencent check --account my_account
 node dist/cli.js douyin check --account my_account
 node dist/cli.js kuaishou check --account my_account
 node dist/cli.js wechatmp check --account my_account
+node dist/cli.js zhihu check --account my_account
+node dist/cli.js baijiahao check --account my_account
 ```
 
 ### 3. 发布单个平台
@@ -218,7 +249,27 @@ node dist/cli.js wechatmp publish \
   --title "从网页提取的文章"
 ```
 
-默认行为是保存草稿；若确认直接发布，可加 `--publish`。
+#### 知乎文章
+
+```bash
+node dist/cli.js zhihu publish \
+  --account my_account \
+  --source /absolute/path/to/article.md \
+  --title "文章标题"
+```
+
+默认保存草稿或等待编辑器自动保存；只有显式加 `--publish` 才会尝试直接发布。
+
+#### 百家号文章
+
+```bash
+node dist/cli.js baijiahao publish \
+  --account my_account \
+  --source /absolute/path/to/article.md \
+  --title "文章标题"
+```
+
+默认保存草稿或等待编辑器自动保存；只有显式加 `--publish` 才会尝试直接发布。
 
 ### 4. 多平台顺序发布
 
@@ -236,8 +287,10 @@ node dist/cli.js orchestrate --config ./orchestrator.config.json
 
 说明：
 
-- `orchestrate` 支持混合任务：`tencent` / `douyin` / `kuaishou` / `wechatmp`
+- `orchestrate` 支持混合任务：`tencent` / `douyin` / `kuaishou` / `wechatmp` / `zhihu` / `baijiahao`
 - `wechatmp` 任务示例字段：`source`、`source_type`、`title`、`author`、`digest`、`publish`
+- `zhihu` 任务示例字段：`source`、`source_type`、`title`、`publish`
+- `baijiahao` 任务示例字段：`source`、`source_type`、`title`、`publish`
 
 ## 常用命令
 
@@ -246,6 +299,8 @@ node dist/cli.js <platform> login --account <name>
 node dist/cli.js <platform> check --account <name>
 node dist/cli.js <platform> upload [options]
 node dist/cli.js wechatmp publish --account <name> --source <path-or-url> --title "..."
+node dist/cli.js zhihu publish --account <name> --source <path-or-url> --title "..."
+node dist/cli.js baijiahao publish --account <name> --source <path-or-url> --title "..."
 node dist/cli.js orchestrate --config /absolute/path/to/config.json
 ```
 
@@ -255,6 +310,8 @@ node dist/cli.js orchestrate --config /absolute/path/to/config.json
 - `douyin`
 - `kuaishou`
 - `wechatmp`（使用 `publish` 子命令）
+- `zhihu`（使用 `publish` 子命令）
+- `baijiahao`（使用 `publish` 子命令）
 
 ## 常用参数
 
@@ -264,9 +321,9 @@ node dist/cli.js orchestrate --config /absolute/path/to/config.json
 - `--desc`：描述，仅抖音和快手支持
 - `--tags`：逗号分隔标签
 - `--schedule`：定时发布时间，格式为 `YYYY-MM-DD HH:mm`
-- `--source`：公众号文章来源（Markdown 绝对路径 / GitHub URL / 网页 URL）
+- `--source`：图文文章来源（Markdown 绝对路径 / GitHub URL / 网页 URL）
 - `--source-type`：`auto|markdown|github|url`
-- `--publish`：公众号图文直接发布（默认保存草稿）
+- `--publish`：图文直接发布（默认保存草稿）
 
 ## 数据目录
 

@@ -22,6 +22,20 @@ const SESSION_EXPIRED_TEXTS = [
   "请在微信客户端",
   "请使用微信扫一扫登录",
 ];
+const WECHATMP_EDITOR_TITLE_SELECTORS = [
+  '.ProseMirror[data-placeholder*="标题"]',
+  '[contenteditable="true"][data-placeholder*="标题"]',
+  'textarea[placeholder*="输入标题"]',
+  'textarea[placeholder*="标题"]',
+  'input[placeholder*="标题"]',
+  'textarea[name="title"]',
+  "#title",
+];
+const WECHATMP_EDITOR_BODY_SELECTORS = [
+  '.ProseMirror[style*="min-height"]',
+  '.ProseMirror:not([data-placeholder*="标题"])',
+  "iframe",
+];
 
 function qrcodeSelectors(): string[] {
   return [
@@ -203,7 +217,20 @@ async function fillIfPresent(page: Page, selectors: string[], value?: string): P
   if (!value?.trim()) return;
   const locator = await firstVisibleLocator(page, selectors);
   if (!locator) return;
+  const isContentEditable = await locator
+    .evaluate((node) => node.getAttribute("contenteditable") === "true")
+    .catch(() => false);
   await locator.click();
+  if (isContentEditable) {
+    await locator.evaluate((node, nextValue) => {
+      const el = node as HTMLElement;
+      el.innerHTML = "";
+      el.textContent = nextValue;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    }, value.trim());
+    return;
+  }
   await locator.fill(value.trim());
 }
 
@@ -221,10 +248,28 @@ async function setEditorHtml(page: Page, html: string): Promise<void> {
       return !!doc?.body;
     });
     if (!pick?.contentDocument?.body) {
-      const editable = document.querySelector('[contenteditable="true"]') as HTMLElement | null;
+      const proseMirrors = Array.from(document.querySelectorAll(".ProseMirror")) as HTMLElement[];
+      const bodyEditor =
+        proseMirrors.find((node) => {
+          const placeholder = node.getAttribute("data-placeholder") ?? "";
+          const style = node.getAttribute("style") ?? "";
+          return !placeholder.includes("标题") && style.includes("min-height");
+        }) ??
+        proseMirrors.find((node) => !(node.getAttribute("data-placeholder") ?? "").includes("标题")) ??
+        null;
+      const editable =
+        bodyEditor ??
+        (document.querySelector('[contenteditable="true"]:not([data-placeholder*="标题"])') as HTMLElement | null);
+      const titleEditor = document.querySelector(
+        '.ProseMirror[data-placeholder*="标题"], [contenteditable="true"][data-placeholder*="标题"]'
+      ) as HTMLElement | null;
+      if (editable && titleEditor && editable === titleEditor) {
+        return { ok: false, reason: "body_editor_not_found" };
+      }
       if (editable) {
         editable.innerHTML = content;
         editable.dispatchEvent(new Event("input", { bubbles: true }));
+        editable.dispatchEvent(new Event("change", { bubbles: true }));
         return { ok: true, mode: "contenteditable" };
       }
       return { ok: false, reason: "editor_not_found" };
@@ -259,6 +304,58 @@ function appendToken(url: string, token: string | null): string {
   return u.toString();
 }
 
+async function collectWechatEditorDiagnostics(page: Page): Promise<string> {
+  const counts: string[] = [];
+  for (const selector of WECHATMP_EDITOR_TITLE_SELECTORS) {
+    const count = await page.locator(selector).count().catch(() => 0);
+    counts.push(`${selector}=${count}`);
+  }
+  for (const selector of WECHATMP_EDITOR_BODY_SELECTORS) {
+    const count = await page.locator(selector).count().catch(() => 0);
+    counts.push(`${selector}=${count}`);
+  }
+
+  const bodyText = await page.locator("body").innerText().catch(() => "");
+  const bodySnippet = bodyText.replace(/\s+/g, " ").slice(0, 240);
+  const title = await page.title().catch(() => "");
+
+  return [
+    `url=${page.url()}`,
+    title ? `title=${JSON.stringify(title)}` : "",
+    counts.join(" ; "),
+    bodySnippet ? `body=${JSON.stringify(bodySnippet)}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ; ");
+}
+
+async function waitUntilWechatEditorReady(page: Page, timeoutMs: number): Promise<boolean> {
+  const start = Date.now();
+  let stable = 0;
+
+  while (Date.now() - start < timeoutMs) {
+    if (
+      includesLoginHint(page.url()) ||
+      (await isLoginPromptVisible(page)) ||
+      (await isSessionExpired(page))
+    ) {
+      return false;
+    }
+
+    const titleInput = await firstVisibleLocator(page, WECHATMP_EDITOR_TITLE_SELECTORS);
+    const bodyEditor = await firstVisibleLocator(page, WECHATMP_EDITOR_BODY_SELECTORS);
+    if (titleInput && bodyEditor) {
+      stable += 1;
+      if (stable >= 3) return true;
+    } else {
+      stable = 0;
+    }
+    await sleep(500);
+  }
+
+  return false;
+}
+
 async function openEditor(page: Page): Promise<Page> {
   const articleEntry = page.locator(".new-creation__menu-item").filter({ hasText: "文章" }).first();
   if (!(await articleEntry.isVisible().catch(() => false))) {
@@ -273,26 +370,24 @@ async function openEditor(page: Page): Promise<Page> {
   await editorPage.waitForLoadState("domcontentloaded", { timeout: 120_000 });
   await editorPage.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {});
   await sleep(2500);
+  if (!(await waitUntilWechatEditorReady(editorPage, 20_000))) {
+    if (
+      includesLoginHint(editorPage.url()) ||
+      (await isLoginPromptVisible(editorPage)) ||
+      (await isSessionExpired(editorPage))
+    ) {
+      throw new Error("当前登录态失效，无法进入公众号图文编辑页。");
+    }
+    const diagnostics = await collectWechatEditorDiagnostics(editorPage);
+    throw new Error(`未识别到标题输入框或正文编辑器。${diagnostics}`);
+  }
+
   if (
     includesLoginHint(editorPage.url()) ||
     (await isLoginPromptVisible(editorPage)) ||
     (await isSessionExpired(editorPage))
   ) {
     throw new Error("当前登录态失效，无法进入公众号图文编辑页。");
-  }
-
-  const titleInput = await firstVisibleLocator(editorPage, [
-    'textarea[placeholder*="输入标题"]',
-    'textarea[placeholder*="标题"]',
-    'input[placeholder*="标题"]',
-    'textarea[name="title"]',
-    "#title",
-  ]);
-  if (!titleInput) {
-    if (await isSessionExpired(editorPage)) {
-      throw new Error("当前登录态失效，无法进入公众号图文编辑页。");
-    }
-    throw new Error(`未识别到标题输入框，当前页面: ${editorPage.url()}`);
   }
 
   return editorPage;
@@ -419,7 +514,7 @@ export async function publishWechatArticle(
     emit(6, total, "FILL_FORM", "填写图文内容");
     await fillIfPresent(
       editorPage,
-      ['textarea[placeholder*="输入标题"]', 'textarea[placeholder*="标题"]', 'textarea[name="title"]', "#title"],
+      WECHATMP_EDITOR_TITLE_SELECTORS,
       opts.title
     );
     await fillIfPresent(

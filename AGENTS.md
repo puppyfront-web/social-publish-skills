@@ -14,7 +14,7 @@
 
 ```text
 node dist/cli.js <tencent|douyin|kuaishou> <check|login|upload> [选项]
-node dist/cli.js wechatmp <check|login|publish> [选项]
+node dist/cli.js <wechatmp|zhihu|baijiahao> <check|login|publish> [选项]
 ```
 
 开发调试用：`npm run dev -- <同上参数>`（无需先 build）。
@@ -27,7 +27,9 @@ node dist/cli.js wechatmp <check|login|publish> [选项]
 | 检查 cookie | `node dist/cli.js <平台> check --account <别名>` |
 | 发一个视频 | `node dist/cli.js <平台> upload --account <别名> --file <绝对路径> --title "..."` |
 | 发公众号图文 | `node dist/cli.js wechatmp publish --account <别名> --source <绝对路径或URL> --title "..."` |
-| 多平台顺序发 | 复制并编辑 `skills/multi-platform-publish-orchestrator/references/orchestrator.config.example.json`（支持 `tencent/douyin/kuaishou/wechatmp` 混排），再 `node dist/cli.js orchestrate --config <该文件路径>` |
+| 发知乎文章 | `node dist/cli.js zhihu publish --account <别名> --source <绝对路径或URL> --title "..."` |
+| 发百家号文章 | `node dist/cli.js baijiahao publish --account <别名> --source <绝对路径或URL> --title "..."` |
+| 多平台顺序发 | 复制并编辑 `skills/multi-platform-publish-orchestrator/references/orchestrator.config.example.json`（支持 `tencent/douyin/kuaishou/wechatmp/zhihu/baijiahao` 混排），再 `node dist/cli.js orchestrate --config <该文件路径>` |
 | 三站各登录一遍验收 | `node dist/cli.js verify-scan-login --account <别名>` |
 
 ## 平台差异（易错）
@@ -36,6 +38,8 @@ node dist/cli.js wechatmp <check|login|publish> [选项]
 - **抖音 `douyin`**：`upload` 有 `--desc`、`--tags`；标题约 **30 字**内；`login` / 上传页内登录默认**轮询**扫码成功，一般不必点 Resume。可选 `SOCIAL_PUBLISH_LOGIN_NO_POLL=1` 关闭轮询。
 - **快手 `kuaishou`**：`--tags` 最多 **3** 个话题；`login` 与 `upload` 内登录支持轮询；未登录上传页可能出现「去上传」，引擎会跳转扫码。
 - **微信公众号 `wechatmp`**：`publish` 支持 `--source-type auto|markdown|github|url`。默认点击“保存草稿”；只有显式传 `--publish` 才会尝试发布。首版建议 `SOCIAL_PUBLISH_HEADLESS=0` 便于观察编辑器行为。
+- **知乎 `zhihu`**：`publish` 支持 `--source-type auto|markdown|github|url`。默认保存草稿或等待编辑器自动保存；只有显式传 `--publish` 才会尝试发布。首版建议 `SOCIAL_PUBLISH_HEADLESS=0` 便于观察编辑器行为。
+- **百家号 `baijiahao`**：`publish` 支持 `--source-type auto|markdown|github|url`。默认保存草稿或等待编辑器自动保存；只有显式传 `--publish` 才会尝试发布。首版建议 `SOCIAL_PUBLISH_HEADLESS=0` 便于扫码与安全验证。
 
 ## 环境变量（常用）
 

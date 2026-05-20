@@ -22,10 +22,22 @@ import {
   type WechatmpPublishOptions,
 } from "./platforms/wechatmp.js";
 import {
+  cookieAuth as zhihuCookieAuth,
+  loginAndSaveCookie as zhihuLogin,
+  publishZhihuArticle,
+} from "./platforms/zhihu.js";
+import {
+  cookieAuth as baijiahaoCookieAuth,
+  loginAndSaveCookie as baijiahaoLogin,
+  publishBaijiahaoArticle,
+} from "./platforms/baijiahao.js";
+import {
   resolveTencentCookiePath,
   resolveDouyinCookiePath,
   resolveKuaishouCookiePath,
   resolveWechatmpCookiePath,
+  resolveZhihuCookiePath,
+  resolveBaijiahaoCookiePath,
 } from "./paths.js";
 import { logPublishResult } from "./publish-result.js";
 import { runFromConfigFile } from "./orchestrator.js";
@@ -290,6 +302,100 @@ wechatmp
       title: opts.title,
       author: opts.author,
       digest: opts.digest,
+      publish: Boolean(opts.publish),
+    });
+    logPublishResult(result);
+  });
+
+// ─── 知乎图文 ────────────────────────────────────────────────
+
+const zhihu = program.command("zhihu").description("知乎文章发布");
+
+zhihu
+  .command("check")
+  .requiredOption("--account <name>", "账号名或 cookie JSON 路径")
+  .action(async (opts) => {
+    const p = resolveZhihuCookiePath(opts.account);
+    const ok = await zhihuCookieAuth(p);
+    console.log(ok ? "valid" : "invalid");
+    process.exit(ok ? 0 : 1);
+  });
+
+zhihu
+  .command("login")
+  .requiredOption("--account <name>", "账号名")
+  .option("--skip-verify", "仅保存 storageState，保存后不跑无头校验")
+  .action(async (opts) => {
+    const p = resolveZhihuCookiePath(opts.account);
+    await loginThenVerifyCookie({
+      label: "zhihu",
+      path: p,
+      skipVerify: Boolean(opts.skipVerify),
+      login: zhihuLogin,
+      check: zhihuCookieAuth,
+    });
+  });
+
+zhihu
+  .command("publish")
+  .requiredOption("--account <name>", "账号名")
+  .requiredOption("--source <pathOrUrl>", "文章来源：Markdown 绝对路径 / GitHub URL / 网页 URL")
+  .requiredOption("--title <t>", "文章标题")
+  .option("--source-type <type>", "auto|markdown|github|url，默认 auto")
+  .option("--publish", "直接发布（默认保存草稿）")
+  .action(async (opts) => {
+    const result = await publishZhihuArticle({
+      account: opts.account,
+      source: opts.source,
+      sourceType: parseWechatSourceType(opts.sourceType),
+      title: opts.title,
+      publish: Boolean(opts.publish),
+    });
+    logPublishResult(result);
+  });
+
+// ─── 百家号图文 ──────────────────────────────────────────────
+
+const baijiahao = program.command("baijiahao").description("百家号文章发布");
+
+baijiahao
+  .command("check")
+  .requiredOption("--account <name>", "账号名或 cookie JSON 路径")
+  .action(async (opts) => {
+    const p = resolveBaijiahaoCookiePath(opts.account);
+    const ok = await baijiahaoCookieAuth(p);
+    console.log(ok ? "valid" : "invalid");
+    process.exit(ok ? 0 : 1);
+  });
+
+baijiahao
+  .command("login")
+  .requiredOption("--account <name>", "账号名")
+  .option("--skip-verify", "仅保存 storageState，保存后不跑无头校验")
+  .action(async (opts) => {
+    const p = resolveBaijiahaoCookiePath(opts.account);
+    await loginThenVerifyCookie({
+      label: "baijiahao",
+      path: p,
+      skipVerify: Boolean(opts.skipVerify),
+      login: baijiahaoLogin,
+      check: baijiahaoCookieAuth,
+    });
+  });
+
+baijiahao
+  .command("publish")
+  .requiredOption("--account <name>", "账号名")
+  .requiredOption("--source <pathOrUrl>", "文章来源：Markdown 绝对路径 / GitHub URL / 网页 URL")
+  .requiredOption("--title <t>", "文章标题")
+  .option("--source-type <type>", "auto|markdown|github|url，默认 auto")
+  .option("--publish", "直接发布（默认保存草稿）")
+  .action(async (opts) => {
+    const result = await publishBaijiahaoArticle({
+      account: opts.account,
+      source: opts.source,
+      sourceType: parseWechatSourceType(opts.sourceType),
+      title: opts.title,
       publish: Boolean(opts.publish),
     });
     logPublishResult(result);

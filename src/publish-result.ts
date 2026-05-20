@@ -1,4 +1,10 @@
-export type PublishPlatform = "tencent" | "douyin" | "kuaishou" | "wechatmp";
+export type PublishPlatform =
+  | "tencent"
+  | "douyin"
+  | "kuaishou"
+  | "wechatmp"
+  | "zhihu"
+  | "baijiahao";
 
 export type PublishResult = {
   platform: PublishPlatform;

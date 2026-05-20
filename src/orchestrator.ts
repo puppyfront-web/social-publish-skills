@@ -3,6 +3,8 @@ import { publishTencentVideo } from "./platforms/tencent.js";
 import { publishDouyinVideo } from "./platforms/douyin.js";
 import { publishKuaishouVideo } from "./platforms/kuaishou.js";
 import { publishWechatArticle } from "./platforms/wechatmp.js";
+import { publishZhihuArticle } from "./platforms/zhihu.js";
+import { publishBaijiahaoArticle } from "./platforms/baijiahao.js";
 import { logPublishResult, type PublishResult } from "./publish-result.js";
 
 const SCHEDULE = /^(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})$/;
@@ -130,6 +132,24 @@ export async function runFromConfigFile(configPath: string): Promise<void> {
           title: expectString(t, "title"),
           author: t.author,
           digest: t.digest,
+          publish: Boolean(t.publish),
+        });
+        break;
+      case "zhihu":
+        result = await publishZhihuArticle({
+          account: t.account,
+          source: expectString(t, "source"),
+          sourceType: t.source_type ?? "auto",
+          title: expectString(t, "title"),
+          publish: Boolean(t.publish),
+        });
+        break;
+      case "baijiahao":
+        result = await publishBaijiahaoArticle({
+          account: t.account,
+          source: expectString(t, "source"),
+          sourceType: t.source_type ?? "auto",
+          title: expectString(t, "title"),
           publish: Boolean(t.publish),
         });
         break;

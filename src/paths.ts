@@ -27,3 +27,11 @@ export function resolveKuaishouCookiePath(accountOrPath: string): string {
 export function resolveWechatmpCookiePath(accountOrPath: string): string {
   return resolveCookiePath("wechatmp", accountOrPath);
 }
+
+export function resolveZhihuCookiePath(accountOrPath: string): string {
+  return resolveCookiePath("zhihu", accountOrPath);
+}
+
+export function resolveBaijiahaoCookiePath(accountOrPath: string): string {
+  return resolveCookiePath("baijiahao", accountOrPath);
+}
