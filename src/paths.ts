@@ -28,6 +28,10 @@ export function resolveWechatmpCookiePath(accountOrPath: string): string {
   return resolveCookiePath("wechatmp", accountOrPath);
 }
 
+export function resolveXiaohongshuCookiePath(accountOrPath: string): string {
+  return resolveCookiePath("xiaohongshu", accountOrPath);
+}
+
 export function resolveZhihuCookiePath(accountOrPath: string): string {
   return resolveCookiePath("zhihu", accountOrPath);
 }

@@ -4,7 +4,8 @@ export type PublishPlatform =
   | "kuaishou"
   | "wechatmp"
   | "zhihu"
-  | "baijiahao";
+  | "baijiahao"
+  | "xiaohongshu";
 
 export type PublishResult = {
   platform: PublishPlatform;

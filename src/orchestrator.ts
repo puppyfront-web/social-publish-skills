@@ -2,6 +2,10 @@ import fs from "node:fs";
 import { publishTencentVideo } from "./platforms/tencent.js";
 import { publishDouyinVideo } from "./platforms/douyin.js";
 import { publishKuaishouVideo } from "./platforms/kuaishou.js";
+import {
+  publishXiaohongshuNote,
+  publishXiaohongshuVideo,
+} from "./platforms/xiaohongshu.js";
 import { publishWechatArticle } from "./platforms/wechatmp.js";
 import { publishZhihuArticle } from "./platforms/zhihu.js";
 import { publishBaijiahaoArticle } from "./platforms/baijiahao.js";
@@ -14,7 +18,9 @@ export type OrchestratorTask = {
   account: string;
   title?: string;
   video_file?: string;
+  images?: string[];
   description?: string;
+  note?: string;
   tags?: string;
   schedule?: string;
   category?: string;
@@ -123,6 +129,30 @@ export async function runFromConfigFile(configPath: string): Promise<void> {
           tags,
           schedule,
         });
+        break;
+      case "xiaohongshu":
+        if (t.video_file) {
+          result = await publishXiaohongshuVideo({
+            account: t.account,
+            videoFile: t.video_file,
+            title: expectString(t, "title"),
+            description: t.description,
+            tags,
+            schedule,
+          });
+        } else {
+          if (!Array.isArray(t.images) || t.images.length === 0) {
+            throw new Error(`Invalid task for platform "${t.platform}": missing "images"`);
+          }
+          result = await publishXiaohongshuNote({
+            account: t.account,
+            images: t.images,
+            title: expectString(t, "title"),
+            note: t.note ?? t.description,
+            tags,
+            schedule,
+          });
+        }
         break;
       case "wechatmp":
         result = await publishWechatArticle({

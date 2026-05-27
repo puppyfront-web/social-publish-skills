@@ -16,6 +16,12 @@ import {
   publishKuaishouVideo,
 } from "./platforms/kuaishou.js";
 import {
+  cookieAuth as xiaohongshuCookieAuth,
+  loginAndSaveCookie as xiaohongshuLogin,
+  publishXiaohongshuNote,
+  publishXiaohongshuVideo,
+} from "./platforms/xiaohongshu.js";
+import {
   cookieAuth as wechatmpCookieAuth,
   loginAndSaveCookie as wechatmpLogin,
   publishWechatArticle,
@@ -35,6 +41,7 @@ import {
   resolveTencentCookiePath,
   resolveDouyinCookiePath,
   resolveKuaishouCookiePath,
+  resolveXiaohongshuCookiePath,
   resolveWechatmpCookiePath,
   resolveZhihuCookiePath,
   resolveBaijiahaoCookiePath,
@@ -250,6 +257,75 @@ kuaishou
       videoFile: opts.file,
       title: opts.title,
       description: opts.desc,
+      tags: parseTags(opts.tags),
+      schedule: parseSchedule(opts.schedule),
+    });
+    logPublishResult(result);
+  });
+
+// ─── 小红书 ──────────────────────────────────────────────────
+
+const xiaohongshu = program.command("xiaohongshu").description("小红书创作者平台");
+
+xiaohongshu
+  .command("check")
+  .requiredOption("--account <name>", "账号名或 cookie JSON 路径")
+  .action(async (opts) => {
+    const p = resolveXiaohongshuCookiePath(opts.account);
+    const ok = await xiaohongshuCookieAuth(p);
+    console.log(ok ? "valid" : "invalid");
+    process.exit(ok ? 0 : 1);
+  });
+
+xiaohongshu
+  .command("login")
+  .requiredOption("--account <name>", "账号名")
+  .option("--skip-verify", "仅保存 storageState，保存后不跑无头校验")
+  .action(async (opts) => {
+    const p = resolveXiaohongshuCookiePath(opts.account);
+    await loginThenVerifyCookie({
+      label: "xiaohongshu",
+      path: p,
+      skipVerify: Boolean(opts.skipVerify),
+      login: xiaohongshuLogin,
+      check: xiaohongshuCookieAuth,
+    });
+  });
+
+xiaohongshu
+  .command("upload-video")
+  .requiredOption("--account <name>", "账号名")
+  .requiredOption("--file <path>", "视频文件绝对路径")
+  .requiredOption("--title <t>", "标题")
+  .option("--desc <d>", "描述（默认同标题）")
+  .option("--tags <csv>", "逗号分隔话题")
+  .option("--schedule <t>", "定时 YYYY-MM-DD HH:mm")
+  .action(async (opts) => {
+    const result = await publishXiaohongshuVideo({
+      account: opts.account,
+      videoFile: opts.file,
+      title: opts.title,
+      description: opts.desc,
+      tags: parseTags(opts.tags),
+      schedule: parseSchedule(opts.schedule),
+    });
+    logPublishResult(result);
+  });
+
+xiaohongshu
+  .command("upload-note")
+  .requiredOption("--account <name>", "账号名")
+  .requiredOption("--images <paths...>", "图片文件绝对路径列表")
+  .requiredOption("--title <t>", "标题")
+  .option("--note <text>", "正文（默认同标题）")
+  .option("--tags <csv>", "逗号分隔话题")
+  .option("--schedule <t>", "定时 YYYY-MM-DD HH:mm")
+  .action(async (opts) => {
+    const result = await publishXiaohongshuNote({
+      account: opts.account,
+      images: opts.images,
+      title: opts.title,
+      note: opts.note,
       tags: parseTags(opts.tags),
       schedule: parseSchedule(opts.schedule),
     });
