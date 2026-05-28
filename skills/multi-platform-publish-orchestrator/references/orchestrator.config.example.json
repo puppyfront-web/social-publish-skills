@@ -29,6 +29,27 @@
       "schedule": ""
     },
     {
+      "platform": "xiaohongshu",
+      "account": "main_account",
+      "video_file": "/absolute/path/to/video.mp4",
+      "title": "小红书视频示例标题",
+      "description": "这是一段描述",
+      "tags": "话题一,话题二",
+      "schedule": ""
+    },
+    {
+      "platform": "xiaohongshu",
+      "account": "main_account",
+      "images": [
+        "/absolute/path/to/image1.png",
+        "/absolute/path/to/image2.png"
+      ],
+      "title": "小红书图文示例标题",
+      "note": "这是一段图文正文",
+      "tags": "话题一,话题二",
+      "schedule": ""
+    },
+    {
       "platform": "wechatmp",
       "account": "main_account",
       "source": "/absolute/path/to/article.md",

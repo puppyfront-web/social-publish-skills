@@ -7,13 +7,13 @@
 - 微信视频号 `tencent`
 - 抖音 `douyin`
 - 快手 `kuaishou`
+- 小红书 `xiaohongshu`
 - 微信公众号图文 `wechatmp`
 - 知乎文章 `zhihu`
 - 百家号文章 `baijiahao`
 
 暂不支持：
 
-- 小红书
 - B 站
 
 ## Skill 可用性矩阵
@@ -25,13 +25,13 @@
 | `skills/tencent-upload/SKILL.md` | 单平台视频发布 | 已实现：`tencent check|login|upload` | 可用 |
 | `skills/douyin-upload/SKILL.md` | 单平台视频发布 | 已实现：`douyin check|login|upload` | 可用 |
 | `skills/kuaishou-upload/SKILL.md` | 单平台视频发布 | 已实现：`kuaishou check|login|upload` | 可用 |
+| `skills/xiaohongshu-upload/SKILL.md` | 单平台图文 / 视频发布 | 已实现：`xiaohongshu check|login|upload-video|upload-note` | 可用 |
 | `skills/wechatmp-article-upload/SKILL.md` | 单平台图文发布 | 已实现：`wechatmp check|login|publish` | 可用 |
 | `skills/zhihu-article-upload/SKILL.md` | 单平台图文发布 | 已实现：`zhihu check|login|publish` | 可用 |
 | `skills/baijiahao-article-upload/SKILL.md` | 单平台图文发布 | 已实现：`baijiahao check|login|publish` | 可用 |
 | `skills/multi-platform-publish-orchestrator/SKILL.md` | 多平台编排 | 已实现：`orchestrate` / `verify-scan-login` | 可用 |
 | `skills/douyin-upload-prompt/SKILL.md` | 上传前文案补全 | 无独立 CLI，作为抖音上传前辅助流程使用 | 辅助可用 |
 | `skills/bilibili-upload/SKILL.md` | 单平台视频发布 | 未实现对应 CLI 子命令 | 占位，不可用 |
-| `skills/xiaohongshu-upload/SKILL.md` | 单平台图文 / 视频发布 | 未实现对应 CLI 子命令 | 占位，不可用 |
 
 补充说明：
 
@@ -138,6 +138,7 @@ npm run build
 - 视频号发布：`skills/tencent-upload/SKILL.md`
 - 抖音发布：`skills/douyin-upload/SKILL.md`
 - 快手发布：`skills/kuaishou-upload/SKILL.md`
+- 小红书发布：`skills/xiaohongshu-upload/SKILL.md`
 - 公众号图文发布：`skills/wechatmp-article-upload/SKILL.md`
 - 知乎文章发布：`skills/zhihu-article-upload/SKILL.md`
 - 百家号文章发布：`skills/baijiahao-article-upload/SKILL.md`
@@ -164,6 +165,7 @@ npm run build
 node dist/cli.js tencent login --account my_account
 node dist/cli.js douyin login --account my_account
 node dist/cli.js kuaishou login --account my_account
+node dist/cli.js xiaohongshu login --account my_account
 node dist/cli.js wechatmp login --account my_account
 node dist/cli.js zhihu login --account my_account
 node dist/cli.js baijiahao login --account my_account
@@ -182,6 +184,7 @@ node dist/cli.js baijiahao login --account my_account
 node dist/cli.js tencent check --account my_account
 node dist/cli.js douyin check --account my_account
 node dist/cli.js kuaishou check --account my_account
+node dist/cli.js xiaohongshu check --account my_account
 node dist/cli.js wechatmp check --account my_account
 node dist/cli.js zhihu check --account my_account
 node dist/cli.js baijiahao check --account my_account
@@ -218,6 +221,28 @@ node dist/cli.js kuaishou upload \
   --file /absolute/path/to/video.mp4 \
   --title "标题" \
   --desc "描述" \
+  --tags "话题1,话题2"
+```
+
+#### 小红书视频
+
+```bash
+node dist/cli.js xiaohongshu upload-video \
+  --account my_account \
+  --file /absolute/path/to/video.mp4 \
+  --title "标题" \
+  --desc "描述" \
+  --tags "话题1,话题2"
+```
+
+#### 小红书图文
+
+```bash
+node dist/cli.js xiaohongshu upload-note \
+  --account my_account \
+  --images /absolute/path/to/1.png /absolute/path/to/2.png \
+  --title "标题" \
+  --note "正文" \
   --tags "话题1,话题2"
 ```
 
@@ -287,7 +312,8 @@ node dist/cli.js orchestrate --config ./orchestrator.config.json
 
 说明：
 
-- `orchestrate` 支持混合任务：`tencent` / `douyin` / `kuaishou` / `wechatmp` / `zhihu` / `baijiahao`
+- `orchestrate` 支持混合任务：`tencent` / `douyin` / `kuaishou` / `xiaohongshu` / `wechatmp` / `zhihu` / `baijiahao`
+- `xiaohongshu` 任务字段：视频用 `video_file`，图文用 `images`；还支持 `description` / `note`、`tags`、`schedule`
 - `wechatmp` 任务示例字段：`source`、`source_type`、`title`、`author`、`digest`、`publish`
 - `zhihu` 任务示例字段：`source`、`source_type`、`title`、`publish`
 - `baijiahao` 任务示例字段：`source`、`source_type`、`title`、`publish`
@@ -298,6 +324,8 @@ node dist/cli.js orchestrate --config ./orchestrator.config.json
 node dist/cli.js <platform> login --account <name>
 node dist/cli.js <platform> check --account <name>
 node dist/cli.js <platform> upload [options]
+node dist/cli.js xiaohongshu upload-video --account <name> --file <absolute-video> --title "..."
+node dist/cli.js xiaohongshu upload-note --account <name> --images <absolute-image...> --title "..."
 node dist/cli.js wechatmp publish --account <name> --source <path-or-url> --title "..."
 node dist/cli.js zhihu publish --account <name> --source <path-or-url> --title "..."
 node dist/cli.js baijiahao publish --account <name> --source <path-or-url> --title "..."
@@ -309,6 +337,7 @@ node dist/cli.js orchestrate --config /absolute/path/to/config.json
 - `tencent`
 - `douyin`
 - `kuaishou`
+- `xiaohongshu`（使用 `upload-video` / `upload-note` 子命令）
 - `wechatmp`（使用 `publish` 子命令）
 - `zhihu`（使用 `publish` 子命令）
 - `baijiahao`（使用 `publish` 子命令）
