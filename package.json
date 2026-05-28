@@ -17,11 +17,16 @@
     "node": ">=20"
   },
   "dependencies": {
+    "cheerio": "^1.1.2",
     "commander": "^13.1.0",
-    "playwright": "^1.50.0"
+    "markdown-it": "^14.1.0",
+    "playwright": "^1.50.0",
+    "turndown": "^7.2.1"
   },
   "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
     "@types/node": "^22.10.0",
+    "@types/turndown": "^5.0.6",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   }

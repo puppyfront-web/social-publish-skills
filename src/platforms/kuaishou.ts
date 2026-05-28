@@ -15,6 +15,7 @@ import {
 } from "../browser.js";
 import { emit } from "../progress.js";
 import { resolveKuaishouCookiePath } from "../paths.js";
+import { type PublishResult } from "../publish-result.js";
 
 const UPLOAD_URL = "https://cp.kuaishou.com/article/publish/video";
 const LOGIN_URL =
@@ -393,7 +394,7 @@ async function waitForKuaishouUploadControl(
 
 export async function publishKuaishouVideo(
   opts: KuaishouPublishOptions
-): Promise<void> {
+): Promise<PublishResult> {
   const storagePath = resolveKuaishouCookiePath(opts.account);
   const videoPath = path.resolve(opts.videoFile);
   if (!fs.existsSync(videoPath))
@@ -476,6 +477,10 @@ export async function publishKuaishouVideo(
 
     await ctx.storageState({ path: storagePath });
     emit(8, total, "DONE", "成功", true);
+    return {
+      platform: "kuaishou",
+      reviewUrl: page.url(),
+    };
   } finally {
     await ctx.close();
     await browser.close();
