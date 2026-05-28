@@ -153,6 +153,55 @@ npm run build
 3. 需要单平台时直接调用对应子命令
 4. 需要多平台时使用 `orchestrate --config ...`
 
+## 推荐 Prompt（可直接复制给 LLM）
+
+下面的 Prompt 用于让 LLM 快速理解并正确使用本仓库（先读规则，再执行命令）。
+
+### 通用 Prompt
+
+```text
+你正在操作仓库 /Users/tutu/social-publish-skills。
+
+请先阅读 AGENTS.md，再执行任何命令。
+严格遵循以下规则：
+1) 所有 npm / node dist/cli.js 命令必须在仓库根目录执行。
+2) 如果 dist/cli.js 不存在，先执行：
+   npm install
+   npx playwright install chromium
+   npm run build
+3) 上传视频 --file 必须是绝对路径；JSON 里的 video_file 也必须是绝对路径。
+4) 不要读取或泄露 ~/.social-publish-skills/cookies/ 下的 JSON 内容，不要提交 .env。
+5) 需要扫码登录时必须在用户本机完成，不要伪造 cookie 或跳过登录。
+
+然后根据我的目标执行对应命令，并汇报执行结果与下一步建议。
+```
+
+### Codex 专用 Prompt
+
+```text
+先阅读 AGENTS.md 和 README.md，然后在仓库根目录执行任务。
+优先使用以下命令模式：
+- 登录：node dist/cli.js <platform> login --account <name>
+- 检查：node dist/cli.js <platform> check --account <name>
+- 发布：node dist/cli.js <platform> upload/publish ...（按平台子命令）
+- 多平台：node dist/cli.js orchestrate --config <absolute-config-path>
+
+只使用本仓库已实现的平台能力，不要声称支持 bilibili。
+```
+
+### Claude Code / OpenClaw 专用 Prompt
+
+```text
+请把自己当作本地终端执行代理：
+1) 先读 AGENTS.md。
+2) 所有命令都在 /Users/tutu/social-publish-skills 根目录执行。
+3) 严格使用 node dist/cli.js 作为统一入口，不另造上传脚本。
+4) 需要扫码时暂停并提示我在本机完成。
+5) 输出时给出已执行命令、结果摘要、失败时的重试命令。
+```
+
+更多安装和适配说明见 [INSTALL.md](/Users/tutu/social-publish-skills/INSTALL.md)。
+
 ## 使用流程
 
 推荐按下面顺序使用。
