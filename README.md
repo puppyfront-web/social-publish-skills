@@ -1,60 +1,137 @@
+<div align="center">
+
 # social-publish-skills
 
-一个基于 TypeScript + Playwright 的社媒发布工具集，用于在本机完成扫码登录、登录态校验和内容发布（短视频 + 图文）。
+**一站式社媒内容生产与发布工具集 · 从选题到分发，全链路 Agent 化**
 
-目前支持的平台：
+[![GitHub stars](https://img.shields.io/github/stars/puppyfront-web/social-publish-skills?style=social)](https://github.com/puppyfront-web/social-publish-skills/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/puppyfront-web/social-publish-skills?style=social)](https://github.com/puppyfront-web/social-publish-skills/network/members)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-blue)](#环境要求)
 
-- 微信视频号 `tencent`
-- 抖音 `douyin`
-- 快手 `kuaishou`
-- 小红书 `xiaohongshu`
-- 微信公众号图文 `wechatmp`
-- 知乎文章 `zhihu`
-- 百家号文章 `baijiahao`
+**覆盖 7 大主流平台 · 13 个可复用 Skill · 支持 Codex / Claude Code / OpenClaw**
 
-暂不支持：
+</div>
 
-- B 站
+---
 
-## Skill 可用性矩阵
+## ⭐ Star 增长曲线
 
-下面这张表按“仓库中是否有真实 CLI/平台实现”来区分，而不是只看 `skills/` 目录里有没有 `SKILL.md`。
+```mermaid
+---
+config:
+    xyChart:
+        xAxis:
+            label: "月份"
+            showLine: true
+        yAxis:
+            label: "Stars"
+        title: "Star 增长趋势"
+---
+xychart-beta
+    title "Star Growth Trend"
+    x-axis ["4月", "5月", "6月", "7月"]
+    y-axis "Stars" 0 --> 10
+    bar [3, 5, 7, 8]
+    line [3, 5, 7, 8]
+```
 
-| Skill | 类型 | CLI / 实现状态 | 当前结论 |
+> 自 2026 年 4 月开源以来持续增长，感谢每一位 Star 支持 🙏
+
+---
+
+## 📖 目录
+
+- [这是什么](#-这是什么)
+- [平台支持](#-平台支持)
+- [Skill 能力矩阵](#-skill-能力矩阵)
+- [快速开始](#-快速开始)
+- [在 Agent 中接入](#-在-agent-中接入)
+- [使用流程](#-使用流程)
+- [常用命令与参数](#-常用命令与参数)
+- [数据与配置](#-数据与配置)
+- [开发调试](#-开发调试)
+- [联系与反馈](#-联系与反馈)
+
+---
+
+## 🎯 这是什么
+
+`social-publish-skills` 是一个基于 **TypeScript + Playwright** 的社媒内容生产与发布工具集。它把两件事打包成 Agent 可调用的 Skill：
+
+1. **内容生产**（新增）— 从选题、文案创作到发布运营的全流程提示词资产
+2. **平台发布**（核心）— 在本机完成扫码登录、登录态校验、内容发布（短视频 + 图文）
+
+设计理念：**让 Agent 既能"写"，也能"发"**。一份内容，多平台分发，全链路自动化。
+
+### 适合什么场景
+
+- ✅ 首次登录某个平台账号
+- ✅ 检查本机已有 cookie 是否仍然可用
+- ✅ 将一个视频发布到单个或多个平台
+- ✅ 自动将 Markdown / GitHub / 网页文章格式化后发布到公众号、知乎、百家号
+- ✅ 让 Agent 帮你从 0 到 1 创作爆款内容（选题→标题→正文→优化）
+- ✅ 在自动化工作流中编排"创作 → 审核 → 发布"全链路
+
+---
+
+## 🌐 平台支持
+
+| 平台 | 标识 | 视频 | 图文 | 状态 |
+| --- | --- | :---: | :---: | --- |
+| 微信视频号 | `tencent` | ✅ | — | 稳定 |
+| 抖音 | `douyin` | ✅ | — | 稳定 |
+| 快手 | `kuaishou` | ✅ | — | 稳定 |
+| 小红书 | `xiaohongshu` | ✅ | ✅ | 稳定 |
+| 微信公众号 | `wechatmp` | — | ✅ | 稳定 |
+| 知乎 | `zhihu` | — | ✅ | 稳定 |
+| 百家号 | `baijiahao` | — | ✅ | 稳定 |
+| B 站 | `bilibili` | — | — | 暂不支持 |
+
+---
+
+## 🧩 Skill 能力矩阵
+
+仓库中的 Skill 分两大类：**内容生产**（提示词资产，纯方法论）和**平台发布**（CLI 实现，可执行）。
+
+### 内容生产（增长三件套）
+
+| Skill | 定位 | 核心能力 | 状态 |
 | --- | --- | --- | --- |
-| `skills/tencent-upload/SKILL.md` | 单平台视频发布 | 已实现：`tencent check|login|upload` | 可用 |
-| `skills/douyin-upload/SKILL.md` | 单平台视频发布 | 已实现：`douyin check|login|upload` | 可用 |
-| `skills/kuaishou-upload/SKILL.md` | 单平台视频发布 | 已实现：`kuaishou check|login|upload` | 可用 |
-| `skills/xiaohongshu-upload/SKILL.md` | 单平台图文 / 视频发布 | 已实现：`xiaohongshu check|login|upload-video|upload-note` | 可用 |
-| `skills/wechatmp-article-upload/SKILL.md` | 单平台图文发布 | 已实现：`wechatmp check|login|publish` | 可用 |
-| `skills/zhihu-article-upload/SKILL.md` | 单平台图文发布 | 已实现：`zhihu check|login|publish` | 可用 |
-| `skills/baijiahao-article-upload/SKILL.md` | 单平台图文发布 | 已实现：`baijiahao check|login|publish` | 可用 |
-| `skills/multi-platform-publish-orchestrator/SKILL.md` | 多平台编排 | 已实现：`orchestrate` / `verify-scan-login` | 可用 |
-| `skills/douyin-upload-prompt/SKILL.md` | 上传前文案补全 | 无独立 CLI，作为抖音上传前辅助流程使用 | 辅助可用 |
-| `skills/bilibili-upload/SKILL.md` | 单平台视频发布 | 未实现对应 CLI 子命令 | 占位，不可用 |
+| `skills/growth-content-strategy/` | 策略层 | 选题挖掘、账号定位、对标拆解、矩阵裂变 | 可用 |
+| `skills/growth-content-writing/` | 创作层 | 爆款标题、各平台正文、口播脚本、仿写改写 | 可用 |
+| `skills/growth-content-ops/` | 运营层 | 文案优化、爆款拆解、评论区互动、发布时间 | 可用 |
 
-补充说明：
+### 平台发布
 
-- `可用` 表示仓库里已经有对应的 `src/platforms/*.ts` 与 `node dist/cli.js ...` 子命令。
-- `辅助可用` 表示 skill 本身不是发布引擎，而是配合已实现平台一起使用。
-- `占位，不可用` 表示仅保留说明或参考模板，当前仓库不能直接执行。
+| Skill | 类型 | CLI / 实现状态 | 状态 |
+| --- | --- | --- | --- |
+| `skills/tencent-upload/` | 单平台视频发布 | 已实现：`tencent check\|login\|upload` | ✅ 可用 |
+| `skills/douyin-upload/` | 单平台视频发布 | 已实现：`douyin check\|login\|upload` | ✅ 可用 |
+| `skills/kuaishou-upload/` | 单平台视频发布 | 已实现：`kuaishou check\|login\|upload` | ✅ 可用 |
+| `skills/xiaohongshu-upload/` | 单平台图文/视频发布 | 已实现：`xiaohongshu check\|login\|upload-video\|upload-note` | ✅ 可用 |
+| `skills/wechatmp-article-upload/` | 单平台图文发布 | 已实现：`wechatmp check\|login\|publish` | ✅ 可用 |
+| `skills/zhihu-article-upload/` | 单平台图文发布 | 已实现：`zhihu check\|login\|publish` | ✅ 可用 |
+| `skills/baijiahao-article-upload/` | 单平台图文发布 | 已实现：`baijiahao check\|login\|publish` | ✅ 可用 |
+| `skills/multi-platform-publish-orchestrator/` | 多平台编排 | 已实现：`orchestrate` / `verify-scan-login` | ✅ 可用 |
+| `skills/douyin-upload-prompt/` | 上传前文案补全 | 无独立 CLI，配合抖音上传使用 | 🔶 辅助可用 |
+| `skills/bilibili-upload/` | 单平台视频发布 | 未实现对应 CLI 子命令 | ⛔ 占位 |
 
-## 适合什么场景
+**状态说明**：`✅ 可用` = 仓库已有 `src/platforms/*.ts` 与 `node dist/cli.js` 子命令；`🔶 辅助可用` = 非发布引擎，配合已实现平台使用；`⛔ 占位` = 仅保留模板，不可执行。
 
-- 首次登录某个平台账号
-- 检查本机已有 cookie 是否仍然可用
-- 将一个视频发布到单个平台
-- 按顺序将一个视频发布到多个平台
-- 自动将 Markdown / GitHub / 网页文章格式化后发布到微信公众号、知乎或百家号（默认保存草稿）
+---
 
-## 环境要求
+## 🚀 快速开始
+
+### 环境要求
 
 - Node.js `>= 20`
 - 本机可运行 Playwright Chromium
 
-## 安装
+### 安装
 
-首次使用时，在仓库根目录执行：
+首次使用，在仓库根目录执行：
 
 ```bash
 npm install
@@ -62,36 +139,39 @@ npx playwright install chromium
 npm run build
 ```
 
-说明：
+> 说明：仓库默认不提交 `dist/`，完成构建后才能使用 `node dist/cli.js ...`
 
-- 仓库默认不提交 `dist/`
-- 只有完成构建后，才能使用 `node dist/cli.js ...`
+### 三十秒上手
 
-## 在 Agent 中接入
+```bash
+# 1. 登录账号（扫码在本机完成）
+node dist/cli.js douyin login --account my_account
 
-这个仓库既可以直接给人手动使用，也可以接入到 `Codex`、`Claude Code`、`OpenClaw` 这类 Agent 工作流中。
+# 2. 检查登录态
+node dist/cli.js douyin check --account my_account
 
-接入时建议统一遵循这几个原则：
+# 3. 发布视频
+node dist/cli.js douyin upload \
+  --account my_account \
+  --file /absolute/path/to/video.mp4 \
+  --title "标题" \
+  --tags "话题1,话题2"
+```
 
-- 所有命令都在仓库根目录执行
-- 首次运行先完成 `npm install`、`npx playwright install chromium`、`npm run build`
-- 发布视频时使用视频文件绝对路径
-- 扫码登录必须在用户本机完成
+---
+
+## 🤖 在 Agent 中接入
+
+本仓库既可手动使用，也可接入 `Codex`、`Claude Code`、`OpenClaw` 等 Agent。
+
+### 接入原则
+
+- 所有命令都在**仓库根目录**执行
+- 首次运行先完成 `npm install` → `npx playwright install chromium` → `npm run build`
+- 发布视频使用**绝对路径**
+- 扫码登录必须在**用户本机**完成
 
 ### Codex
-
-适合场景：
-
-- 让 Codex 直接帮你执行登录、检查、上传、多平台发布
-- 让 Codex 根据你的文案和视频路径直接调用 CLI
-
-推荐接入方式：
-
-- 让 Codex 在本仓库内工作
-- 先读取根目录的 `AGENTS.md`
-- 再按任务需要调用 `node dist/cli.js ...`
-
-推荐提示方式：
 
 ```text
 先阅读 AGENTS.md，并在仓库根目录执行命令。
@@ -101,19 +181,6 @@ npm run build
 
 ### Claude Code
 
-适合场景：
-
-- 在本地终端中让 Claude Code 直接执行发布命令
-- 把它作为“本地操作代理”来完成扫码登录和上传
-
-推荐接入方式：
-
-- 将仓库作为当前工作目录打开
-- 明确要求它先阅读 `README.md` 和 `AGENTS.md`
-- 所有平台操作统一走 `node dist/cli.js`
-
-推荐提示方式：
-
 ```text
 请先阅读 README.md 和 AGENTS.md。
 所有 npm 和 node dist/cli.js 命令都在仓库根目录执行。
@@ -122,87 +189,27 @@ npm run build
 
 ### OpenClaw
 
-适合场景：
+将本仓库的 `skills/` 目录提供给 OpenClaw，让 Agent 按需读取对应平台的 `SKILL.md`。实际执行仍统一调用本仓库 CLI。
 
-- 把 `skills/` 下的平台能力作为可复用 Skill 接入
-- 在自动化工作流中复用单平台上传或多平台编排能力
+常见映射：
 
-推荐接入方式：
+| 能力 | Skill |
+| --- | --- |
+| 内容创作（选题/文案/优化） | `skills/growth-content-strategy/`、`growth-content-writing/`、`growth-content-ops/` |
+| 视频号发布 | `skills/tencent-upload/` |
+| 抖音发布 | `skills/douyin-upload/` |
+| 快手发布 | `skills/kuaishou-upload/` |
+| 小红书发布 | `skills/xiaohongshu-upload/` |
+| 公众号图文发布 | `skills/wechatmp-article-upload/` |
+| 知乎文章发布 | `skills/zhihu-article-upload/` |
+| 百家号文章发布 | `skills/baijiahao-article-upload/` |
+| 多平台顺序发布 | `skills/multi-platform-publish-orchestrator/` |
 
-- 将本仓库的 `skills/` 目录提供给 OpenClaw
-- 让 Agent 按需读取对应平台的 `SKILL.md`
-- 实际执行仍统一调用本仓库 CLI，而不是另写一套上传逻辑
+更多安装和适配说明见 [INSTALL.md](INSTALL.md) 和 [AGENTS.md](AGENTS.md)。
 
-常见映射关系：
+---
 
-- 视频号发布：`skills/tencent-upload/SKILL.md`
-- 抖音发布：`skills/douyin-upload/SKILL.md`
-- 快手发布：`skills/kuaishou-upload/SKILL.md`
-- 小红书发布：`skills/xiaohongshu-upload/SKILL.md`
-- 公众号图文发布：`skills/wechatmp-article-upload/SKILL.md`
-- 知乎文章发布：`skills/zhihu-article-upload/SKILL.md`
-- 百家号文章发布：`skills/baijiahao-article-upload/SKILL.md`
-- 多平台顺序发布：`skills/multi-platform-publish-orchestrator/SKILL.md`
-
-### 推荐做法
-
-如果你要把这个仓库接到任意 Agent 中，最稳妥的方式是：
-
-1. 让 Agent 先读取 `AGENTS.md`
-2. 让 Agent 在仓库根目录构建并执行 CLI
-3. 需要单平台时直接调用对应子命令
-4. 需要多平台时使用 `orchestrate --config ...`
-
-## 推荐 Prompt（可直接复制给 LLM）
-
-下面的 Prompt 用于让 LLM 快速理解并正确使用本仓库（先读规则，再执行命令）。
-
-### 通用 Prompt
-
-```text
-你正在操作仓库 /Users/tutu/social-publish-skills。
-
-请先阅读 AGENTS.md，再执行任何命令。
-严格遵循以下规则：
-1) 所有 npm / node dist/cli.js 命令必须在仓库根目录执行。
-2) 如果 dist/cli.js 不存在，先执行：
-   npm install
-   npx playwright install chromium
-   npm run build
-3) 上传视频 --file 必须是绝对路径；JSON 里的 video_file 也必须是绝对路径。
-4) 不要读取或泄露 ~/.social-publish-skills/cookies/ 下的 JSON 内容，不要提交 .env。
-5) 需要扫码登录时必须在用户本机完成，不要伪造 cookie 或跳过登录。
-
-然后根据我的目标执行对应命令，并汇报执行结果与下一步建议。
-```
-
-### Codex 专用 Prompt
-
-```text
-先阅读 AGENTS.md 和 README.md，然后在仓库根目录执行任务。
-优先使用以下命令模式：
-- 登录：node dist/cli.js <platform> login --account <name>
-- 检查：node dist/cli.js <platform> check --account <name>
-- 发布：node dist/cli.js <platform> upload/publish ...（按平台子命令）
-- 多平台：node dist/cli.js orchestrate --config <absolute-config-path>
-
-只使用本仓库已实现的平台能力，不要声称支持 bilibili。
-```
-
-### Claude Code / OpenClaw 专用 Prompt
-
-```text
-请把自己当作本地终端执行代理：
-1) 先读 AGENTS.md。
-2) 所有命令都在 /Users/tutu/social-publish-skills 根目录执行。
-3) 严格使用 node dist/cli.js 作为统一入口，不另造上传脚本。
-4) 需要扫码时暂停并提示我在本机完成。
-5) 输出时给出已执行命令、结果摘要、失败时的重试命令。
-```
-
-更多安装和适配说明见 [INSTALL.md](/Users/tutu/social-publish-skills/INSTALL.md)。
-
-## 使用流程
+## 📋 使用流程
 
 推荐按下面顺序使用。
 
@@ -220,23 +227,13 @@ node dist/cli.js zhihu login --account my_account
 node dist/cli.js baijiahao login --account my_account
 ```
 
-参数说明：
-
-- `--account` 是你给这个账号起的别名
+- `--account` 是你给账号起的别名
 - 同一平台下，不同别名会保存为不同的 cookie 文件
 
 ### 2. 检查登录态
 
-如果不确定 cookie 是否还有效，可以先检查：
-
 ```bash
-node dist/cli.js tencent check --account my_account
-node dist/cli.js douyin check --account my_account
-node dist/cli.js kuaishou check --account my_account
-node dist/cli.js xiaohongshu check --account my_account
-node dist/cli.js wechatmp check --account my_account
-node dist/cli.js zhihu check --account my_account
-node dist/cli.js baijiahao check --account my_account
+node dist/cli.js <platform> check --account my_account
 ```
 
 ### 3. 发布单个平台
@@ -305,17 +302,17 @@ node dist/cli.js wechatmp publish \
   --author "作者名"
 ```
 
-GitHub / URL 来源示例：
+支持 GitHub / URL 来源：
 
 ```bash
+# 从 GitHub 同步
 node dist/cli.js wechatmp publish \
   --account my_account \
   --source https://github.com/owner/repo/blob/main/README.md \
   --source-type github \
   --title "从 GitHub 同步的文章"
-```
 
-```bash
+# 从网页提取
 node dist/cli.js wechatmp publish \
   --account my_account \
   --source https://example.com/post/123 \
@@ -323,27 +320,21 @@ node dist/cli.js wechatmp publish \
   --title "从网页提取的文章"
 ```
 
-#### 知乎文章
+#### 知乎 / 百家号文章
 
 ```bash
+# 知乎（默认保存草稿，加 --publish 直接发布）
 node dist/cli.js zhihu publish \
   --account my_account \
   --source /absolute/path/to/article.md \
   --title "文章标题"
-```
 
-默认保存草稿或等待编辑器自动保存；只有显式加 `--publish` 才会尝试直接发布。
-
-#### 百家号文章
-
-```bash
+# 百家号
 node dist/cli.js baijiahao publish \
   --account my_account \
   --source /absolute/path/to/article.md \
   --title "文章标题"
 ```
-
-默认保存草稿或等待编辑器自动保存；只有显式加 `--publish` 才会尝试直接发布。
 
 ### 4. 多平台顺序发布
 
@@ -359,51 +350,44 @@ cp skills/multi-platform-publish-orchestrator/references/orchestrator.config.exa
 node dist/cli.js orchestrate --config ./orchestrator.config.json
 ```
 
-说明：
+`orchestrate` 支持混合任务：`tencent` / `douyin` / `kuaishou` / `xiaohongshu` / `wechatmp` / `zhihu` / `baijiahao`。
 
-- `orchestrate` 支持混合任务：`tencent` / `douyin` / `kuaishou` / `xiaohongshu` / `wechatmp` / `zhihu` / `baijiahao`
-- `xiaohongshu` 任务字段：视频用 `video_file`，图文用 `images`；还支持 `description` / `note`、`tags`、`schedule`
-- `wechatmp` 任务示例字段：`source`、`source_type`、`title`、`author`、`digest`、`publish`
-- `zhihu` 任务示例字段：`source`、`source_type`、`title`、`publish`
-- `baijiahao` 任务示例字段：`source`、`source_type`、`title`、`publish`
+---
 
-## 常用命令
+## ⌨️ 常用命令与参数
+
+### 命令一览
 
 ```bash
-node dist/cli.js <platform> login --account <name>
-node dist/cli.js <platform> check --account <name>
-node dist/cli.js <platform> upload [options]
-node dist/cli.js xiaohongshu upload-video --account <name> --file <absolute-video> --title "..."
-node dist/cli.js xiaohongshu upload-note --account <name> --images <absolute-image...> --title "..."
-node dist/cli.js wechatmp publish --account <name> --source <path-or-url> --title "..."
-node dist/cli.js zhihu publish --account <name> --source <path-or-url> --title "..."
-node dist/cli.js baijiahao publish --account <name> --source <path-or-url> --title "..."
-node dist/cli.js orchestrate --config /absolute/path/to/config.json
+node dist/cli.js <platform> login --account <name>      # 登录
+node dist/cli.js <platform> check --account <name>      # 检查登录态
+node dist/cli.js <platform> upload [options]            # 发布视频
+node dist/cli.js xiaohongshu upload-video|upload-note   # 小红书
+node dist/cli.js wechatmp|zhihu|baijiahao publish       # 图文
+node dist/cli.js orchestrate --config <config.json>     # 多平台编排
 ```
 
-`<platform>` 可选：
+`<platform>` 可选：`tencent` / `douyin` / `kuaishou` / `xiaohongshu` / `wechatmp` / `zhihu` / `baijiahao`
 
-- `tencent`
-- `douyin`
-- `kuaishou`
-- `xiaohongshu`（使用 `upload-video` / `upload-note` 子命令）
-- `wechatmp`（使用 `publish` 子命令）
-- `zhihu`（使用 `publish` 子命令）
-- `baijiahao`（使用 `publish` 子命令）
+### 常用参数
 
-## 常用参数
+| 参数 | 说明 |
+| --- | --- |
+| `--account` | 账号别名 |
+| `--file` | 视频绝对路径 |
+| `--title` | 标题 |
+| `--desc` | 描述（仅抖音、快手） |
+| `--tags` | 逗号分隔标签 |
+| `--schedule` | 定时发布 `YYYY-MM-DD HH:mm` |
+| `--source` | 图文来源（Markdown 路径 / GitHub URL / 网页 URL） |
+| `--source-type` | `auto\|markdown\|github\|url` |
+| `--publish` | 图文直接发布（默认保存草稿） |
 
-- `--account`：账号别名
-- `--file`：视频绝对路径
-- `--title`：标题
-- `--desc`：描述，仅抖音和快手支持
-- `--tags`：逗号分隔标签
-- `--schedule`：定时发布时间，格式为 `YYYY-MM-DD HH:mm`
-- `--source`：图文文章来源（Markdown 绝对路径 / GitHub URL / 网页 URL）
-- `--source-type`：`auto|markdown|github|url`
-- `--publish`：图文直接发布（默认保存草稿）
+---
 
-## 数据目录
+## 🗂️ 数据与配置
+
+### 数据目录
 
 默认数据目录：
 
@@ -417,13 +401,17 @@ cookie 默认保存在：
 ~/.social-publish-skills/cookies/<platform>/<account>.json
 ```
 
-## 常用环境变量
+### 常用环境变量
 
-- `SOCIAL_PUBLISH_DATA_DIR`：自定义数据目录
-- `SOCIAL_PUBLISH_HEADLESS=0`：使用有界面浏览器运行
-- `SOCIAL_PUBLISH_CHROME_PATH`：指定本机 Chrome 路径
+| 变量 | 说明 |
+| --- | --- |
+| `SOCIAL_PUBLISH_DATA_DIR` | 自定义数据目录 |
+| `SOCIAL_PUBLISH_HEADLESS=0` | 使用有界面浏览器运行 |
+| `SOCIAL_PUBLISH_CHROME_PATH` | 指定本机 Chrome 路径 |
 
-## 开发调试
+---
+
+## 🔧 开发调试
 
 不经过构建直接运行：
 
@@ -431,6 +419,18 @@ cookie 默认保存在：
 npm run dev -- douyin check --account my_account
 ```
 
-## 许可证
+---
 
-MIT
+## 💬 联系与反馈
+
+- **问题反馈**：[提交 Issue](https://github.com/puppyfront-web/social-publish-skills/issues)
+- **邮箱**：[puppy.front@gmail.com](mailto:puppy.front@gmail.com)
+- **欢迎贡献**：Fork → 修改 → 提交 PR
+
+如果这个项目对你有帮助，欢迎 Star ⭐ 支持，这是持续维护的动力。
+
+---
+
+## 📄 许可证
+
+[MIT](LICENSE)
