@@ -307,19 +307,48 @@ async function clickTab(page: Page, mode: UploadMode): Promise<void> {
     mode === "video"
       ? ["上传视频", "视频"]
       : ["上传图文", "图文", "图片"];
+  // 偏好叶子级、带 class 的 tab 元素；避免误命中同时包住多个 tab 的外层容器。
+  // 优先级：button/[role=tab] > 带 class 的 div/span > 任意 div/span。
+  const candidateSelectors = [
+    "button",
+    "[role='tab']",
+    "[role='button']",
+    "div[class]",
+    "span[class]",
+    "li",
+    "a",
+  ];
   for (const label of labels) {
-    const tabs = page
-      .locator("button, [role='tab'], [role='button'], div, span")
-      .filter({ hasText: new RegExp(label) });
-    const count = await tabs.count().catch(() => 0);
-    for (let i = 0; i < count; i++) {
-      const tab = tabs.nth(i);
-      if (!(await tab.isVisible().catch(() => false))) continue;
-      await tab.click({ force: true }).catch(() => {});
-      await sleep(1000);
-      if (await modeLooksActive(page, mode)) return;
+    for (const sel of candidateSelectors) {
+      // 精确文本匹配（去除首尾空白后相等），避免 hasText 正则把外层容器也算进来。
+      const tabs = page.locator(sel).filter({ hasText: label });
+      const count = await tabs.count().catch(() => 0);
+      for (let i = 0; i < count; i++) {
+        const tab = tabs.nth(i);
+        if (!(await tab.isVisible().catch(() => false))) continue;
+        const text = (await tab.innerText().catch(() => "")).trim();
+        // 只要叶子级精确匹配，避免点到"上传视频 上传图文"这种合并外层
+        if (text !== label) continue;
+        await tab.click({ force: true }).catch(() => {});
+        await sleep(1200);
+        // 用"图片 input 是否真的出现"做最终验证，比看文字可靠得多。
+        if (await hasModeFileInput(page, mode)) return;
+      }
     }
   }
+}
+
+async function hasModeFileInput(page: Page, mode: UploadMode): Promise<boolean> {
+  const inputs = page.locator('input[type="file"]');
+  const count = await inputs.count().catch(() => 0);
+  for (let i = 0; i < count; i++) {
+    const fileInput = inputs.nth(i);
+    const accept = (await fileInput.getAttribute("accept").catch(() => "")) ?? "";
+    // accept 可能是 MIME（image/*）或扩展名（.png,.jpg,.jpeg,.webp），两种都要认。
+    if (mode === "note" && /image|\.png|\.jpe?g|\.webp/i.test(accept)) return true;
+    if (mode === "video" && /video|\.mp4|\.mov|\.avi|\.flv|\.mkv/i.test(accept)) return true;
+  }
+  return false;
 }
 
 async function modeLooksActive(page: Page, mode: UploadMode): Promise<boolean> {
@@ -338,12 +367,14 @@ async function waitForFileInput(page: Page, mode: UploadMode): Promise<Locator> 
     for (let i = 0; i < count; i++) {
       const fileInput = inputs.nth(i);
       const accept = (await fileInput.getAttribute("accept").catch(() => "")) ?? "";
-      if (mode === "note" && /image/i.test(accept)) return fileInput;
-      if (mode === "video" && /video/i.test(accept)) return fileInput;
+      // accept 可能是 MIME（image/*）或扩展名（.png,.jpg,.jpeg,.webp），两种都要认。
+      if (mode === "note" && /image|\.png|\.jpe?g|\.webp/i.test(accept)) return fileInput;
+      if (mode === "video" && /video|\.mp4|\.mov|\.avi|\.flv|\.mkv/i.test(accept)) return fileInput;
     }
     if (count > 0) {
-      const fallback = inputs.first();
-      if (await fallback.isVisible().catch(() => true)) return fallback;
+      // setInputFiles 不要求 input 可见；小红书的 file input 通常是隐藏的（靠 label 触发）。
+      // 当前 tab 只有一个 file input 时，直接用即可。
+      return inputs.first();
     }
     await sleep(500);
   }
@@ -545,9 +576,11 @@ export async function publishXiaohongshuNote(
     await clickTab(page, "note");
     emit(5, total, "UPLOAD_START", `${imagePaths.length} 张图片`);
     await (await waitForFileInput(page, "note")).setInputFiles(imagePaths);
-    await fillTitleAndDescription(page, opts.title, opts.note ?? opts.title, opts.tags);
+    // 图文模式下，标题/正文输入框只有在图片上传完成后才会出现，
+    // 所以必须先等上传完成，再填标题正文（与视频模式顺序相反）。
     emit(6, total, "UPLOAD_TRANSFERRING", "等待上传完成");
     await waitForUploadReady(page);
+    await fillTitleAndDescription(page, opts.title, opts.note ?? opts.title, opts.tags);
     if (opts.schedule) await setSchedule(page, opts.schedule);
     emit(7, total, "PUBLISHING", "发布");
     await clickPublish(page);
