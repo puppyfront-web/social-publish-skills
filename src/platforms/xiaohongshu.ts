@@ -21,13 +21,31 @@ const TITLE_SELECTORS = [
   "textarea[placeholder*='标题']",
   "[contenteditable='true'][placeholder*='标题']",
   "[contenteditable='true'][data-placeholder*='标题']",
+  // 小红书 DLC 设计系统类名（新版编辑页标题框无 placeholder，靠类名识别）
+  "input.d-text.--color-text-title",
+  "input[class*='color-text-title']",
+  "#title",
+  "div[class*='title'][contenteditable='true']",
+  "input[maxlength='20']",
+  "input[maxlength='25']",
 ];
 const DESC_SELECTORS = [
+  // 小红书新版正文框已改为 TipTap/ProseMirror 富文本编辑器(role=textbox)
+  ".tiptap.ProseMirror",
+  "div.tiptap",
+  "div.ProseMirror",
+  "[role='textbox'].ProseMirror",
   "textarea[placeholder*='正文']",
   "textarea[placeholder*='描述']",
   "textarea[placeholder*='分享']",
   "[contenteditable='true'][data-placeholder*='正文']",
   "[contenteditable='true'][placeholder*='正文']",
+  // 小红书新版正文框类名兜底
+  "div[class*='content'][contenteditable='true']",
+  "div[class*='desc'][contenteditable='true']",
+  "div[class*='caption'][contenteditable='true']",
+  "#caption",
+  "[role='textbox']",
   "[contenteditable='true']",
 ];
 const PUBLISH_BUTTON_TEXTS = ["发布", "立即发布"];
@@ -303,10 +321,50 @@ async function openPublishPage(page: Page, storagePath: string): Promise<void> {
 }
 
 async function clickTab(page: Page, mode: UploadMode): Promise<void> {
-  const labels =
-    mode === "video"
-      ? ["上传视频", "视频"]
-      : ["上传图文", "图文", "图片"];
+  if (mode === "note") {
+    // 小红书发布页默认是视频 tab，「上传图文」是顶部 span.title。
+    // 用 DOM evaluate 精确匹配 textContent==='上传图文' 的可视元素，避免 hasText 正则锚点失效。
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const result = await page.evaluate(() => {
+        const all = document.querySelectorAll('span, div, button, a, li, p');
+        let foundCount = 0;
+        for (const e of all) {
+          // 用 textContent（含所有后代文本）而非直接子文本节点，匹配嵌套结构
+          if ((e.textContent || '').trim() !== '上传图文') continue;
+          foundCount++;
+          const r = e.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0 && r.x >= 0 && r.y >= 0) {
+            (e as HTMLElement).click();
+            return { clicked: true, foundCount, x: Math.round(r.x), y: Math.round(r.y) };
+          }
+        }
+        return { clicked: false, foundCount, x: -1, y: -1 };
+      }).catch(() => ({ clicked: false, foundCount: 0, x: -1, y: -1 }));
+      if (result.clicked) {
+        process.stderr.write(`[clickTab] 第${attempt+1}次点击成功 foundCount=${result.foundCount} pos=(${result.x},${result.y})\n`);
+        await sleep(1800);
+      } else {
+        process.stderr.write(`[clickTab] 第${attempt+1}次未点中 foundCount=${result.foundCount}\n`);
+      }
+      // 校验：是否已出现 accept 含 image/jpg 的 file input
+      const inputs = page.locator('input[type="file"]');
+      const cnt = await inputs.count().catch(() => 0);
+      let ok = false;
+      for (let i = 0; i < cnt; i++) {
+        const accept = (await inputs.nth(i).getAttribute("accept").catch(() => "")) ?? "";
+        if (/image|jpg|png|webp/i.test(accept)) { ok = true; break; }
+      }
+      if (ok) {
+        process.stderr.write(`[clickTab] 图文 file input 就绪\n`);
+        return;
+      }
+      await sleep(1200);
+    }
+    process.stderr.write(`[clickTab] 6次尝试后仍未切到图文 tab\n`);
+    return;
+  }
+  // video 模式：默认就在视频 tab
+  const labels = ["上传视频", "视频"];
   for (const label of labels) {
     const tabs = page
       .locator("button, [role='tab'], [role='button'], div, span")
@@ -338,7 +396,7 @@ async function waitForFileInput(page: Page, mode: UploadMode): Promise<Locator> 
     for (let i = 0; i < count; i++) {
       const fileInput = inputs.nth(i);
       const accept = (await fileInput.getAttribute("accept").catch(() => "")) ?? "";
-      if (mode === "note" && /image/i.test(accept)) return fileInput;
+      if (mode === "note" && /image|jpg|jpeg|png|webp/i.test(accept)) return fileInput;
       if (mode === "video" && /video/i.test(accept)) return fileInput;
     }
     if (count > 0) {
@@ -374,25 +432,65 @@ async function fillTitleAndDescription(
   description: string,
   tags: string[]
 ): Promise<void> {
-  const titleEntry = await firstVisibleLocatorEntry(page, TITLE_SELECTORS);
+  // 图文模式：上传后编辑界面是动态渲染的，主动等待标题框出现（最多 60s）
+  const editDeadline = Date.now() + 60_000;
+  let titleEntry = await firstVisibleLocatorEntry(page, TITLE_SELECTORS);
+  while (!titleEntry && Date.now() < editDeadline) {
+    // 兜底：小红书新版标题可能是无 placeholder 的 contenteditable 或 input
+    const fallback = page.locator(
+      "#title, [class*='title'] input, [class*='title'] textarea, [class*='title'][contenteditable='true'], " +
+      "#caption, [class*='caption'] [contenteditable='true'], " +
+      "div[draft-title], input[maxlength='20'], input[maxlength='25'], input[maxlength='30']"
+    );
+    const fbCount = await fallback.count().catch(() => 0);
+    let found = false;
+    for (let i = 0; i < fbCount; i++) {
+      const el = fallback.nth(i);
+      if (await el.isVisible().catch(() => false)) {
+        titleEntry = { locator: el, selector: "fallback" };
+        found = true;
+        break;
+      }
+    }
+    if (found) break;
+    await sleep(1500);
+    titleEntry = await firstVisibleLocatorEntry(page, TITLE_SELECTORS);
+  }
   if (!titleEntry) {
     const diagnostics = await collectDiagnostics(page);
     throw new Error(`未识别到小红书标题输入框。${diagnostics}`);
   }
   await fillLocator(titleEntry.locator, title);
 
-  const descInput = await firstVisibleLocator(
-    page,
-    buildXiaohongshuDescriptionSelectors(titleEntry.selector)
-  );
-  if (descInput) {
-    await descInput.click();
-    const mod = selectAllModifier();
-    await page.keyboard.press(`${mod}+A`);
-    await page.keyboard.insertText(description);
-    for (const tag of tags) {
-      await page.keyboard.insertText(` #${tag}`);
-    }
+  const descSelectors = buildXiaohongshuDescriptionSelectors(titleEntry.selector);
+  // 正文框可能是动态渲染，等待最多 30s
+  let descInput: Locator | null = null;
+  const descDeadline = Date.now() + 30_000;
+  while (Date.now() < descDeadline) {
+    descInput = await firstVisibleLocator(page, descSelectors);
+    if (descInput) break;
+    await sleep(1000);
+  }
+  if (!descInput) {
+    const diagnostics = await collectDiagnostics(page);
+    throw new Error(`未识别到小红书正文框（尝试过 ${descSelectors.length} 个选择器）。${diagnostics}`);
+  }
+  await descInput.click();
+  await sleep(300);
+  const mod = selectAllModifier();
+  await page.keyboard.press(`${mod}+A`);
+  await page.keyboard.insertText(description);
+  for (const tag of tags) {
+    await page.keyboard.insertText(` #${tag}`);
+  }
+  await sleep(500);
+  // 校验：回读正文框内容，确认真的填进去了
+  const descText = await descInput.innerText().catch(() => "");
+  const filledLen = descText.trim().length;
+  process.stderr.write(`[fillDesc] 正文框回读长度=${filledLen} (输入长度=${description.length})\n`);
+  if (filledLen < Math.min(20, description.length)) {
+    const diagnostics = await collectDiagnostics(page);
+    throw new Error(`正文框填充失败：回读长度 ${filledLen}，预期 ${description.length}。${diagnostics}`);
   }
 }
 
