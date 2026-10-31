@@ -126,8 +126,18 @@ wiki 的价值在于被创作技能引用。以下是标准联动协议：
 | 用 `growth-content-strategy/benchmark-analysis` 拆了对标账号 | `benchmarks-wiki/` | 新建/更新对标账号页面 |
 | 创作中发现新的品牌话术/产品卖点 | `brand-wiki/` | 经用户确认后补充 |
 | 分析出新的行业规律 | `industry-wiki/` | 经用户确认后补充 |
+| **发布成功一条作品** | `hits-wiki/own/` | 见下节「发布回流」 |
 
 **回流硬约束**：未经用户确认的推测性结论，不要直接写进 wiki——wiki 是事实库，不是草稿本。
+
+## 发布回流（hits-wiki 闭环，关键章节）
+
+发布引擎（`orchestrate` / 各平台 CLI）成功后会输出提示，把作品回流到 `hits-wiki/own/`。没有这一步，选题永远只能依赖别人的爆款，自己的数据资产建不起来。流程两步：
+
+1. **发布成功当天**：按爆款页 Schema 在 `hits-wiki/own/` 建占位条目——`platform`、`published`、`source`（作品链接，即 CLI 输出的查看链接）、`title` 填实际值；`metrics`、`why_it_worked`、`reusable_template` 留 `TBD`。
+2. **数据出来后（一般 3~7 天）**：回填 `metrics`（播放/点赞/评论/分享）、`why_it_worked`、`reusable_template`；数据明显好于常态的，在 `_index.md` 的共性规律区提炼一句可复用结论。
+
+**回流硬约束**：占位条目必须当天建（链接易丢）；`metrics` 只填平台后台实际数据，不估数；表现差的条目**同样保留**——失败样本对选题校验同样有价值，在 `why_it_worked` 写「未起量，疑似 XX 原因」。
 
 ## 硬约束（本工作流通用）
 

@@ -31,6 +31,8 @@ node dist/cli.js orchestrate --config path/to/config.json
 
 示例配置：`references/orchestrator.config.example.json`（本 skill 目录下）。可选字段 `data_dir` 会写入 `process.env.SOCIAL_PUBLISH_DATA_DIR`。
 
+**创作侧交接**：内容创作技能（`growth-content-writing` / `growth-content-ops`）的终稿按 `references/content-package.md` 的「内容包」格式（带 frontmatter 的 Markdown）交付；Agent 按其「字段 → 各平台任务映射」表把内容包转成本 skill 的 `tasks[]` 配置后执行，不人工转抄字段。发布成功后按 CLI 提示把作品回流 `personal-knowledge-wiki` 的 `hits-wiki/`。
+
 Shell 封装：`scripts/examples/run_orchestrate.sh`。
 
 **扫码登录链路验收**（人工扫码，机器校验）：`node dist/cli.js verify-scan-login --account <别名>`。抖音/快手 `login` 扫码阶段默认**轮询**；视频号多依赖 Inspector Resume 或 `SOCIAL_PUBLISH_LOGIN_STDIN=1`。各站保存后默认无头 `check`，可用 `--skip-verify` 关闭。

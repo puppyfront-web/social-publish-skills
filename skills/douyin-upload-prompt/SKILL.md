@@ -1,6 +1,6 @@
 ---
 name: douyin-upload-prompt
-description: 当用户上传抖音视频但未填写标题、简介或标签时，提供智能补全建议与默认值流程。属于独立仓库 social-publish-skills，与 douyin-upload skill 配合；实际 CLI 以本仓库 TypeScript 引擎为准。
+description: 抖音发布前的最后一步补全：当用户上传抖音视频但未填写标题、简介或标签时，基于模板给出智能建议与默认值，用户确认后交给发布 CLI。只做元数据补全，不做完整创作——从零写文案去 growth-content-writing，执行上传去 douyin-upload。
 ---
 
 # Douyin Upload Prompt Skill
@@ -43,8 +43,13 @@ description: 当用户上传抖音视频但未填写标题、简介或标签时�
 
 ## 配置
 
-- `prompt_logic.py`：提示逻辑参考实现
-- `templates/`：标题与标签模板 JSON
+- `templates/`：标题与标签模板 JSON（`title_templates.json` / `hashtag_suggestions.json`）
+
+## 与其他技能的边界
+
+- 本技能只做**发布前的元数据补全**（标题/简介/标签缺失时的快速建议）；完整创作（标题公式、正文、平台调性）去 `growth-content-writing`。
+- 补全确认后交给 `douyin-upload` 执行上传；多平台分发用 `multi-platform-publish-orchestrator`（创作终稿的标准交接格式见其 `references/content-package.md`）。
+- 拿不准用哪个内容技能时，先看 `skills/content-routing.md`（路由总览）。
 
 ## 集成方式
 

@@ -101,6 +101,8 @@ xychart-beta
 
 **增长三件套**（按获客链路分层，双向交叉路由）
 
+> 内容技能的首次分流看总览路由 [`skills/content-routing.md`](skills/content-routing.md)（用户意图 → 技能决策树）；创作终稿到发布的交接格式看 [`skills/multi-platform-publish-orchestrator/references/content-package.md`](skills/multi-platform-publish-orchestrator/references/content-package.md)（内容包）。
+
 | Skill | 定位 | 核心能力 | 状态 |
 | --- | --- | --- | --- |
 | `skills/growth-content-strategy/` | 策略层 | 选题挖掘、账号定位、对标拆解、矩阵裂变 | 可用 |

@@ -33,6 +33,7 @@ node dist/cli.js <wechatmp|zhihu|baijiahao> <check|login|publish> [选项]
 | 发知乎文章 | `node dist/cli.js zhihu publish --account <别名> --source <绝对路径或URL> --title "..."` |
 | 发百家号文章 | `node dist/cli.js baijiahao publish --account <别名> --source <绝对路径或URL> --title "..."` |
 | 多平台顺序发 | 复制并编辑 `skills/multi-platform-publish-orchestrator/references/orchestrator.config.example.json`（支持 `tencent/douyin/kuaishou/xiaohongshu/wechatmp/zhihu/baijiahao` 混排），再 `node dist/cli.js orchestrate --config <该文件路径>` |
+| 创作终稿转发布配置 | 按 `skills/multi-platform-publish-orchestrator/references/content-package.md` 的内容包格式与字段映射表，转成各平台 CLI 参数或 orchestrator `tasks[]` |
 | 三站各登录一遍验收 | `node dist/cli.js verify-scan-login --account <别名>` |
 
 ## 平台差异（易错）
