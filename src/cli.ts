@@ -300,6 +300,7 @@ xiaohongshu
   .option("--desc <d>", "描述（默认同标题）")
   .option("--tags <csv>", "逗号分隔话题")
   .option("--schedule <t>", "定时 YYYY-MM-DD HH:mm")
+  .option("--draft", "存草稿（不直接发布）")
   .action(async (opts) => {
     const result = await publishXiaohongshuVideo({
       account: opts.account,
@@ -308,6 +309,7 @@ xiaohongshu
       description: opts.desc,
       tags: parseTags(opts.tags),
       schedule: parseSchedule(opts.schedule),
+      draft: Boolean(opts.draft),
     });
     logPublishResult(result);
   });
@@ -320,6 +322,7 @@ xiaohongshu
   .option("--note <text>", "正文（默认同标题）")
   .option("--tags <csv>", "逗号分隔话题")
   .option("--schedule <t>", "定时 YYYY-MM-DD HH:mm")
+  .option("--draft", "存草稿（不直接发布）")
   .action(async (opts) => {
     const result = await publishXiaohongshuNote({
       account: opts.account,
@@ -328,6 +331,7 @@ xiaohongshu
       note: opts.note,
       tags: parseTags(opts.tags),
       schedule: parseSchedule(opts.schedule),
+      draft: Boolean(opts.draft),
     });
     logPublishResult(result);
   });

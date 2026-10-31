@@ -37,6 +37,7 @@ node dist/cli.js xiaohongshu upload-note \
 - `--desc`：描述，可选，默认同标题
 - `--tags`：逗号分隔话题，可选
 - `--schedule`：定时发布，格式 `YYYY-MM-DD HH:mm`
+- `--draft`：存草稿（「暂存离开」进草稿箱），可选，默认直接发布
 
 ### 图文
 
@@ -45,6 +46,7 @@ node dist/cli.js xiaohongshu upload-note \
 - `--note`：正文，可选，默认同标题
 - `--tags`：逗号分隔话题，可选
 - `--schedule`：定时发布，格式 `YYYY-MM-DD HH:mm`
+- `--draft`：存草稿，可选，默认直接发布
 
 ## cookie 持久化
 

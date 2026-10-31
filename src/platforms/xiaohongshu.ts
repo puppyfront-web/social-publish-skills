@@ -59,6 +59,7 @@ export type XiaohongshuVideoOptions = {
   description?: string;
   tags: string[];
   schedule?: Date | null;
+  draft?: boolean;
 };
 
 export type XiaohongshuNoteOptions = {
@@ -68,6 +69,7 @@ export type XiaohongshuNoteOptions = {
   note?: string;
   tags: string[];
   schedule?: Date | null;
+  draft?: boolean;
 };
 
 export function isXiaohongshuLoginUrl(rawUrl: string): boolean {
@@ -512,9 +514,64 @@ async function clickButtonByText(page: Page, labels: string[]): Promise<string |
   return null;
 }
 
-async function clickPublish(page: Page): Promise<void> {
+/** 存草稿：发布页没有「存草稿」按钮，等价操作是底部 <xhs-publish-btn> 自定义元素
+ * shadow DOM 里的「暂存离开」。文本定位器穿不进 shadow DOM，需 evaluate 进
+ * shadowRoot 点真实按钮；仍点不中时按宿主盒子坐标兜底。 */
+async function clickSaveDraft(page: Page): Promise<void> {
+  await page.mouse.wheel(0, 1500).catch(() => {});
+  await sleep(400);
+  const host = page.locator("xhs-publish-btn").first();
+  await host.scrollIntoViewIfNeeded().catch(() => {});
+  let saved = false;
+  if ((await host.count().catch(() => 0)) > 0) {
+    // 重试等待按钮挂载（上传刚完成时 shadow 渲染可能滞后）
+    for (let attempt = 0; attempt < 10 && !saved; attempt++) {
+      saved = await host
+        .evaluate((el) => {
+          const root = el.shadowRoot;
+          if (!root) return false;
+          const nodes = Array.from(root.querySelectorAll<HTMLElement>("button, span, div"));
+          const target = nodes.find((n) => (n.textContent ?? "").includes("暂存"));
+          if (!target) return false;
+          target.click();
+          return true;
+        })
+        .catch(() => false);
+      if (!saved) await sleep(1000);
+    }
+    if (!saved) {
+      // 闭式 shadow 兜底：「暂存离开」与「发布」并排，位于宿主盒子左侧约 1/4 处
+      const box = await host.boundingBox().catch(() => null);
+      if (box) {
+        await page.mouse.click(box.x + box.width * 0.25, box.y + box.height / 2);
+        saved = true;
+      }
+    }
+  }
+  if (!saved) {
+    await page.screenshot({ path: "xhs-draft-debug.png", fullPage: true }).catch(() => {});
+    const diagnostics = await collectDiagnostics(page);
+    throw new Error(`未找到小红书「暂存离开」草稿按钮。${diagnostics}`);
+  }
+  await sleep(1500);
+  // 可能有确认弹窗
+  for (const confirmLabel of ["确认暂存", "确认", "确定"]) {
+    const loc = page.getByText(confirmLabel, { exact: true });
+    if ((await loc.count().catch(() => 0)) > 0 && (await loc.first().isVisible().catch(() => false))) {
+      await loc.first().click({ force: true }).catch(() => {});
+      break;
+    }
+  }
+  await sleep(2000);
+}
+
+async function clickPublish(page: Page, draft = false): Promise<void> {
   await page.mouse.wheel(0, 1200).catch(() => {});
   await sleep(500);
+  if (draft) {
+    await clickSaveDraft(page);
+    return;
+  }
   let used = await clickButtonByText(page, PUBLISH_BUTTON_TEXTS);
   if (!used) {
     const exactButtons = page.locator("button").filter({ hasText: /发布|立即发布|发布笔记/ });
@@ -593,10 +650,10 @@ export async function publishXiaohongshuVideo(
     emit(6, total, "UPLOAD_TRANSFERRING", "等待上传/处理完成");
     await waitForUploadReady(page);
     if (opts.schedule) await setSchedule(page, opts.schedule);
-    emit(7, total, "PUBLISHING", "发布");
-    await clickPublish(page);
+    emit(7, total, "PUBLISHING", opts.draft ? "存草稿" : "发布");
+    await clickPublish(page, opts.draft);
     await ctx.storageState({ path: storagePath });
-    emit(8, total, "DONE", "成功", true);
+    emit(8, total, "DONE", opts.draft ? "已存入草稿箱" : "成功", true);
     return { platform: "xiaohongshu", reviewUrl: page.url() };
   } finally {
     await ctx.close();
@@ -640,10 +697,10 @@ export async function publishXiaohongshuNote(
     await waitForUploadReady(page);
     await fillTitleAndDescription(page, opts.title, opts.note ?? opts.title, opts.tags);
     if (opts.schedule) await setSchedule(page, opts.schedule);
-    emit(7, total, "PUBLISHING", "发布");
-    await clickPublish(page);
+    emit(7, total, "PUBLISHING", opts.draft ? "存草稿" : "发布");
+    await clickPublish(page, opts.draft);
     await ctx.storageState({ path: storagePath });
-    emit(8, total, "DONE", "成功", true);
+    emit(8, total, "DONE", opts.draft ? "已存入草稿箱" : "成功", true);
     return { platform: "xiaohongshu", reviewUrl: page.url() };
   } finally {
     await ctx.close();

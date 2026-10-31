@@ -390,6 +390,7 @@ node dist/cli.js orchestrate --config <config.json>     # 多平台编排
 | `--desc` | 描述（仅抖音、快手） |
 | `--tags` | 逗号分隔标签 |
 | `--schedule` | 定时发布 `YYYY-MM-DD HH:mm` |
+| `--draft` | 小红书存草稿，不直接发布（仅 `upload-video` / `upload-note`） |
 | `--source` | 图文来源（Markdown 路径 / GitHub URL / 网页 URL） |
 | `--source-type` | `auto\|markdown\|github\|url` |
 | `--publish` | 图文直接发布（默认保存草稿） |
