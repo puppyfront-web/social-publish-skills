@@ -5,7 +5,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import { type Page } from "playwright";
+import { type BrowserContext, type Page } from "playwright";
 import { selectAllModifier } from "../config.js";
 import {
   launchBrowser,
@@ -58,35 +58,29 @@ export async function cookieAuth(storagePath: string): Promise<boolean> {
 
 // ─── 登录（与 Python douyin_cookie_gen + _extract_douyin_qrcode_src 对齐）──
 
-/**
- * Python 原版流程：
- * 1. goto creator.douyin.com
- * 2. 等 "扫码登录" tab 出现 → 它的父级的下一个兄弟 div 里找 img[aria-label="二维码"]
- * 3. 如果没找到就 fallback 到 page.get_by_role("img", name="二维码")
- * 4. 等二维码可见
- */
+/** 等登录二维码挂载。新版布局扫码区常驻、无「扫码登录」tab，二维码 img 挂载后
+ * 可能被容器样式判为「不可见」，故等 attached 而非 visible（生成有快有慢，实测 10s+）；
+ * 旧版布局先点「扫码登录」tab 兜底再等。 */
 async function waitForDouyinQrCode(page: Page): Promise<void> {
-  const scanTab = page.getByText("扫码登录", { exact: true }).first();
-  await scanTab.waitFor({ state: "visible", timeout: 30_000 });
-
-  let qr = scanTab
-    .locator("..")
-    .locator("xpath=following-sibling::div[1]")
-    .locator('img[aria-label="二维码"]')
-    .first();
-
-  if ((await qr.count()) === 0) {
-    qr = page.getByRole("img", { name: "二维码" }).first();
+  const qr = page.locator('img[aria-label="二维码"]').first();
+  try {
+    await qr.waitFor({ state: "attached", timeout: 15_000 });
+  } catch {
+    const scanTab = page.getByText("扫码登录", { exact: true }).first();
+    if (await scanTab.isVisible().catch(() => false)) {
+      await scanTab.click({ timeout: 3_000 }).catch(() => {});
+    }
+    try {
+      await qr.waitFor({ state: "attached", timeout: 45_000 });
+    } catch {
+      await page.screenshot({ path: "tmp_qr_fail.png" }).catch(() => {});
+      console.warn("[douyin] 二维码未出现，已保存 tmp_qr_fail.png 供排查");
+      throw new Error("douyin_qr_not_found");
+    }
   }
-
-  await qr.waitFor({ state: "visible", timeout: 30_000 });
   console.log("[douyin] 二维码已显示，请用抖音 APP 扫码");
 }
 
-/**
- * 轮询检测扫码是否完成（与 cookieAuth 思路一致：已在创作者域且登录 Tab 不再展示）。
- * 默认替代「仅 Inspector Resume」：扫码成功后无需再手动点 Continue。
- */
 async function waitUntilDouyinLoggedIn(page: Page): Promise<void> {
   const timeoutMs = 180_000;
   const pollMs = 400;
@@ -114,6 +108,7 @@ async function waitUntilDouyinLoggedIn(page: Page): Promise<void> {
       if (stable >= needStable) {
         await sleep(800);
         console.log("[douyin] 已检测到登录成功");
+        await waitSessionCookie(page.context());
         return;
       }
     } else {
@@ -126,6 +121,21 @@ async function waitUntilDouyinLoggedIn(page: Page): Promise<void> {
     "[douyin] 自动检测超时（3 分钟），请改用 Playwright Inspector 点 Resume，或设置 SOCIAL_PUBLISH_LOGIN_STDIN=1 在终端按 Enter"
   );
   await waitForUserLoginComplete(page);
+}
+
+/** 扫码后手机端还有确认步骤，sessionid 可能晚几秒才落地；
+ * 不等它就存 storageState 会拿到未授权 cookie（check 必 invalid）。 */
+async function waitSessionCookie(ctx: BrowserContext, timeoutMs = 30_000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const cookies = await ctx.cookies();
+    if (cookies.some((c) => c.name === "sessionid" && c.domain.endsWith("douyin.com"))) {
+      console.log("[douyin] sessionid 已落地");
+      return;
+    }
+    await sleep(500);
+  }
+  console.warn("[douyin] 30s 内未等到 sessionid，仍按当前状态保存");
 }
 
 export async function loginAndSaveCookie(storagePath: string): Promise<void> {
