@@ -44,6 +44,7 @@ xychart-beta
 ## 📖 目录
 
 - [这是什么](#-这是什么)
+- [整体架构与流程](#-整体架构与流程)
 - [平台支持](#-平台支持)
 - [Skill 能力矩阵](#-skill-能力矩阵)
 - [快速开始](#-快速开始)
@@ -75,6 +76,76 @@ xychart-beta
 - ✅ 拆解单条爆款视频/文案的可复用结构，抽象成创作模板
 - ✅ 建立个人/品牌 LLM 知识库（Karpathy LLM wiki 范式），让创作引用私有资料
 - ✅ 在自动化工作流中编排"创作 → 审核 → 发布"全链路
+
+---
+
+## 🧭 整体架构与流程
+
+一句话架构：**三层体系**——内容技能层（选题→拆解→提炼→创作→优化）、知识地基层（五库 LLM wiki）、发布引擎层（7 平台 CLI），以「**内容目标 goal**」和「**内容包**」为两个交接契约，形成从选题到数据回流的**自我进化闭环**。
+
+### 端到端流程架构图
+
+```mermaid
+flowchart TB
+    subgraph L1["内容技能层（skills/ · 提示词资产）"]
+        direction TB
+        S1["① 选题定位<br/>growth-content-strategy"]
+        S2["② 定 goal<br/>获客 / 引流 / 涨粉信任 / 转化 / 测试"]
+        S3["③ 对标采集<br/>人工投喂链接 + 转写"]
+        S4["④ 逐条拆解<br/>content-toolkit · competitor-pattern-mining"]
+        S5["⑤ 共性提炼<br/>content-toolkit · pattern-synthesis"]
+        W["⑦ 创作（按 goal 选模板 + 个人语料锚定）<br/>growth-content-writing"]
+        GATE["⑧ 发布前门禁（七项硬检查）"]
+    end
+
+    subgraph L2["知识地基层（personal-knowledge-wiki · 五库）"]
+        direction LR
+        KW["hits-wiki 爆款库<br/>benchmark / own"]
+        TW["⑥ templates-wiki 模板库<br/>验证记录 · 效果排序"]
+        BW["brand / industry / benchmarks-wiki<br/>含 voice-and-tone 个人语料"]
+    end
+
+    subgraph L3["发布引擎层（TypeScript + Playwright）"]
+        direction LR
+        CP["⑨ 内容包 content-package.md<br/>goal + used_templates 回流字段"]
+        OR["⑩ orchestrate / 各平台 CLI"]
+        PF["7 平台发布<br/>视频号 · 抖音 · 快手 · 小红书 · 公众号 · 知乎 · 百家号"]
+    end
+
+    subgraph L4["评估进化层（growth-content-ops）"]
+        direction LR
+        SC["⑪ 单条评分卡（发布后 3~7 天）<br/>八维 × goal 加权 × 双锚基准"]
+        PR["⑫ 周期复盘（周/月）<br/>六维盘点 + 行动项回写"]
+    end
+
+    S1 --> S2 --> S3 --> S4 --> S5 --> TW --> W --> GATE --> CP --> OR --> PF --> SC --> PR
+    S4 --> KW
+    S5 --> KW
+    SC --> KW
+    SC --> TW
+    PR --> TW
+    PR -.->|规律 / 模板排序 / 配比反哺下一轮| S1
+    W -.->|挂载引用| BW
+```
+
+### 十二步闭环速查
+
+| 步骤 | 动作 | 用什么 | 产出落在哪 |
+| --- | --- | --- | --- |
+| ① 选题定位 | 定位链路 + 选题校验四问 | `growth-content-strategy` | 选题卡 |
+| ② 定 goal | 获客 / 引流 / 涨粉信任 / 转化 / 测试，决定后续所有口径 | `growth-content-writing` 前置问 | 选题卡 |
+| ③ 对标采集 | 投喂对标爆款链接 + 转写文本 | 人工投喂（CLI `collect` 规划中） | wiki `inbox/` |
+| ④ 逐条拆解 | 结构公式 / 语言模式 / 情绪曲线 / CTA 五层逆向 | `content-toolkit/competitor-pattern-mining` | `hits-wiki/benchmark/` |
+| ⑤ 共性提炼 | 数据侧分布 + 文本侧聚类，**按 goal 分区** | `content-toolkit/pattern-synthesis` | 共性规律 + 模板候选 |
+| ⑥ 模板入库 | 按模板页 Schema 建条目（带验证记录字段） | `templates-wiki` Schema | `templates-wiki/` |
+| ⑦ 创作 | 按 goal 选已验证模板 + 平台调性变体 + 个人语料锚定 | `growth-content-writing` + `voice-and-tone` | 创作终稿 |
+| ⑧ 发布前门禁 | 七项硬检查（goal/CTA、钩子、标题封面、调性、去 AI 味 12 信号、合规、素材），不过不发布 | `growth-content-writing` 发布前门禁 | 通过 / 打回 |
+| ⑨ 内容包 | frontmatter 含 `goal` / `used_templates` 回流字段 | `content-package.md` 契约 | `content-<主题>.md` |
+| ⑩ 发布 | 内容包转 `tasks[]` 或单平台 CLI 参数 | `orchestrate` / 各平台 CLI | 平台作品 |
+| ⑪ 单条评分卡 | 发布后 3~7 天，八维 × goal 加权 × 双锚基准，短板归因指认环节 | `growth-content-ops/retrospective-scorecard` | `hits-wiki/own/` + 模板 verdicts |
+| ⑫ 周期复盘 | 周/月六维盘点（健康度/爆文率/配比/画像命中/模板战况/规律抽查）+ 三行结论 + 行动项回写 | `growth-content-ops/periodic-review` | 选题卡 / 模板页 / 规律区 |
+
+> 闭环的关键在 ⑫ → ①：数据回流后，共性规律更新选题判断、模板按真实表现排序淘汰（连续 2 次低于常态即淘汰）、目标内容配比按数据调整——下一轮创作只套用被验证过的赢家，这是本仓库"自我进化"能力的来源。去 AI 味体系（12 信号诊断 + 事实零编造红线 + 个人语料锚定）横切在 ⑦⑧ 两步。详细路由见 [`skills/content-routing.md`](skills/content-routing.md)。
 
 ---
 
@@ -113,8 +184,8 @@ xychart-beta
 
 | Skill | 定位 | 核心能力 | 状态 |
 | --- | --- | --- | --- |
-| `skills/content-toolkit/` | 单点工具 | 视频结构分析（钩子/铺垫/高潮/结尾）、竞品模式拆解、去 AI 味改写 | 可用 |
-| `skills/personal-knowledge-wiki/` | 知识地基 | LLM wiki 范式私有资料库（品牌/行业/爆款/对标四类 Schema） | 可用 |
+| `skills/content-toolkit/` | 单点工具 | 视频结构分析（钩子/铺垫/高潮/结尾）、竞品模式拆解、爆款共性提炼（pattern-synthesis）、去 AI 味改写 | 可用 |
+| `skills/personal-knowledge-wiki/` | 知识地基 | LLM wiki 范式私有资料库（品牌/行业/爆款/对标/模板五类 Schema，模板带使用验证记录） | 可用 |
 
 ### 平台发布
 
