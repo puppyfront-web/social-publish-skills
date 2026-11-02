@@ -72,7 +72,7 @@ wiki 不是孤岛，它是创作链路的知识源。下面是各技能如何"�
 | 创作技能 | 挂载哪个 wiki | 怎么用 |
 |---|---|---|
 | `growth-content-strategy`（选题定位） | `industry-wiki/`（行业语料）、`benchmarks-wiki/`（对标档） | 选题时引用行业痛点；定位时参考已沉淀的对标账号 |
-| `growth-content-writing`（写文案） | `brand-wiki/`（品牌资料）、`hits-wiki/`（历史爆款） | 写作时引用品牌话术、产品卖点；套用已验证的爆款框架 |
+| `growth-content-writing`（写文案） | `templates-wiki/`（模板库）、`brand-wiki/`（品牌资料）、`hits-wiki/`（历史爆款） | 先按 goal 选验证效果最好的模板（已验证 > 待验证 > 已淘汰）作结构底座；引用品牌话术、产品卖点 |
 | `growth-content-ops`（优化运营） | `hits-wiki/`（历史爆款） | 优化时对照历史爆款的共性规律 |
 | `content-toolkit`（单点工具） | `benchmarks-wiki/`、`hits-wiki/` | 竞品拆解结论沉淀进 wiki；深度分析时引用历史规律 |
 
@@ -89,7 +89,7 @@ wiki 不是孤岛，它是创作链路的知识源。下面是各技能如何"�
    - 要内容创作专用的 Schema 模板 → 读 `references/wiki-schema-templates.md`
 2. **按需读取参考文件**：
    - 建库 / 维护 / lint → `references/wiki-maintenance.md`（四阶段：摄入/抽取/组织/维护 + lint 清单）
-   - 要品牌/行业/爆款/对标四类模板 → `references/wiki-schema-templates.md`（开箱即用的 Schema + 示例条目）
+   - 要品牌/行业/爆款/对标/模板五类模板 → `references/wiki-schema-templates.md`（开箱即用的 Schema + 示例条目）
 3. **执行时遵循 Schema**：写入任何页面前，先确认（或与用户确认）该用哪个 Schema；没有现成 Schema 时，先和用户一起定义 Schema 再写。
 4. **每次写入后做最小维护**：更新交叉引用 + 刷新受影响摘要（不必每次全量 lint，但新增页面必须接上双链）。
 

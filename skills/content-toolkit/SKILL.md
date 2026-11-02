@@ -1,6 +1,6 @@
 ---
 name: content-toolkit
-description: 用于对单条内容做深度加工。当用户想分析一条视频/文案的结构、拆解竞品爆款套路、把 AI 味文案改成真人表达、从单条内容逆向出可复用模板时使用。涉及视频结构分析（钩子/铺垫/高潮/结尾）、竞品模式挖掘、去 AI 味改写。凡是"给一段内容、要结构化产出"的单点深挖任务都应触发本技能——即使用户只说"帮我看看这条视频怎么写的"也要触发。
+description: 用于对内容做深度加工。当用户想分析一条视频/文案的结构、拆解竞品爆款套路、把 AI 味文案改成真人表达、从单条内容逆向出可复用模板、从一批爆款拆解结论里提炼共性规律建模板库时使用。涉及视频结构分析（钩子/铺垫/高潮/结尾）、竞品模式挖掘、去 AI 味改写、爆款共性提炼。凡是"给内容、要结构化产出"的单点深挖任务都应触发本技能——即使用户只说"帮我看看这条视频怎么写的"也要触发。
 ---
 
 # 内容工具包：单点深挖
@@ -20,16 +20,17 @@ description: 用于对单条内容做深度加工。当用户想分析一条视�
 ### 2. 产出必须是"可复用结论"，不是点评
 每个工具的交付物都应该是**模板 / 公式 / 改写版本**，而不是"这条很好/很差"的主观评价。点评没有执行力，模板才能复用。
 
-### 3. 三个工具可串联，但不强制
-典型串联链路：`video-structure-analysis`（标注结构）→ `competitor-pattern-mining`（抽象模板）→ `growth-content-writing`（用模板裂变）。但每个工具都能独立使用，不强制走完整链路。
+### 3. 四个工具可串联，但不强制
+典型串联链路：`video-structure-analysis`（标注结构）→ `competitor-pattern-mining`（抽象模板）→ `growth-content-writing`（用模板裂变）。批量场景：逐条拆完 N 条后用 `pattern-synthesis` 聚合共性、建模板库。每个工具都能独立使用，不强制走完整链路。
 
-## 三工具能力速查
+## 四工具能力速查
 
 | 工具 | 输入 | 输出 | 核心问题 |
 |---|---|---|---|
 | `video-structure-analysis` | 一条视频/口播转写 | 四段结构标注 + 有效性评估 | "这条内容是怎么构造的？" |
 | `competitor-pattern-mining` | 一条转写/文案 | 可套用模板 + 借鉴建议 | "我能从这个结构里学到什么套路？" |
-| `de-ai-rewrite` | 一段 AI 味重的文案 | 3 种语气真人版 + 改动清单 | "怎么改得像真人写的？" |
+| `de-ai-rewrite` | 一段 AI 味重的文案（+个人语料） | 个人声线真人版（无语料时 3 种语气版）+ 改动清单 + 反指标自检 | "怎么改得像这个人写的？" |
+| `pattern-synthesis` | ≥3 条已拆解条目 + goal | 按 goal 分区的共性规律 + 模板候选 | "这批爆款共同做对了什么？" |
 
 ## 执行流程（根据意图路由）
 
@@ -37,8 +38,10 @@ description: 用于对单条内容做深度加工。当用户想分析一条视�
    - 分析视频/口播的叙事结构 → 读 `references/video-structure-analysis.md`
    - 从一条内容里挖可复用模板 → 读 `references/competitor-pattern-mining.md`
    - 把文案改得不像 AI 写的 → 读 `references/de-ai-rewrite.md`
+   - 从一批拆解结论里提炼共性规律、建模板候选 → 读 `references/pattern-synthesis.md`
 2. **确认输入是否齐备**：
    - 视频类分析**必须有转写文本**——本仓库不做自动转写（见 AGENTS.md），用户只给链接时主动索要转写
+   - 共性提炼必须有 ≥3 条**已拆解**条目（先逐条走 `competitor-pattern-mining`）且 goal 已声明
    - 改写类必须有原文
 3. **按对应工具的工作流分步执行**，每步确认后再进下一步。
 4. **产出后做闭环引导**：
@@ -48,13 +51,14 @@ description: 用于对单条内容做深度加工。当用户想分析一条视�
 
 ## 工具间的边界（避免重叠）
 
-三个工具的输入可能相同（都是一条转写），但产出不同。判断用哪个：
+四个工具的输入可能相同（都是转写），但产出不同。判断用哪个：
 
 | 用户原话倾向 | 用哪个 |
 |---|---|
 | "分析一下这条视频的结构" "钩子高潮在哪" | `video-structure-analysis` |
 | "拆解一下这个爆款套路" "我能学到什么" "抽象个模板" | `competitor-pattern-mining` |
 | "这段文案太像 AI 了" "改得自然点" "不像机器写的" | `de-ai-rewrite` |
+| "这批爆款有什么共同套路" "帮我提炼共性" "建个模板库" | `pattern-synthesis` |
 
 模糊场景：用户说"帮我拆解这条"，先问清是"标注结构"（→ analysis）还是"挖可复用套路"（→ mining）。两者都要时，先 analysis 后 mining。
 
@@ -64,6 +68,7 @@ description: 用于对单条内容做深度加工。当用户想分析一条视�
 |---|---|---|
 | 拆整条视频结构 | ✅ 做 | `video-structure-analysis` |
 | 拆整个对标账号 | ❌ 不做（账号级） | `growth-content-strategy/references/benchmark-analysis.md` |
+| 一批爆款的共性提炼、模板库建设 | ✅ 做 | `pattern-synthesis`（模板入 `templates-wiki/`） |
 | 去掉一段文案的 AI 味 | ✅ 做 | `de-ai-rewrite` |
 | 给文案做 A/B 结构优化 | ❌ 不做（那是结构重组） | `growth-content-ops/references/optimize-rewrite.md` |
 | 从零写新文案 | ❌ 不做（那是创作不是拆解） | `growth-content-writing` |

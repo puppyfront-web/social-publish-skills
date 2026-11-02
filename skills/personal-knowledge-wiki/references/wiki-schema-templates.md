@@ -1,6 +1,6 @@
 # 内容创作知识库 Schema 模板
 
-> 开箱即用的 4 类 wiki Schema。每类含：目录结构、单页 Schema（frontmatter 字段）、示例条目。
+> 开箱即用的 5 类 wiki Schema。每类含：目录结构、单页 Schema（frontmatter 字段）、示例条目。
 
 ## 通用约定
 
@@ -59,6 +59,28 @@ updated: YYYY-MM-DD
 source: <来源>
 ---
 ```
+
+**话术与人设页 `voice-and-tone.md`（去 AI 味的锚点库）**
+```yaml
+---
+type: voice
+owner: <谁的声线（个人/品牌名）>
+samples:                        # 必填：本人真实文案 ≥5 条（原创，非 AI 生成）
+  - |
+    <一段本人写的真实文案/口播/朋友圈>
+catchphrases: [<固定口头禅>]     # 高频词与句式惯性
+never_use: [<从不用的词>]        # 负面清单：本人反感/从不使用的表达
+emoji_profile:                  # emoji 个人化画像（去 AI 味依据）
+  frequency: 少|中|多
+  favorites: [<惯用的那几款>]
+  position: <通常出现的位置，如"只在情绪点">
+quirks: <系统性偏差：爱跑的题/过度展开的话题/句长习惯>   # 个性=对个体的过拟合，写具体。注意：仅供改写时校对参考，不要求每篇展示，更禁止为表现 quirks 编造事件（见 de-ai-rewrite 硬约束）
+updated: YYYY-MM-DD
+source: <样本来源：本人提供/历史作品摘录>
+---
+```
+
+**使用约定**：`content-toolkit/de-ai-rewrite` 改写时**必须先读本页**——有 `samples` 走"个体版"改写，没有则提示用户先建本页。`samples` 只收本人真实表达，不收 AI 生成内容（否则锚定的还是 AI 均值）。
 
 ### 示例条目（`products/轻食代餐奶昔.md`）
 ```yaml
@@ -163,7 +185,7 @@ source: 小红书话题调研
 ### 目录结构
 ```
 hits-wiki/
-├── _index.md                # 爆款总览 + 共性规律提炼
+├── _index.md                # 爆款总览 + 共性规律提炼（规律区按 goal 分区）
 ├── own/                     # 自己账号的爆款
 └── benchmark/               # 对标账号的爆款
 ```
@@ -177,6 +199,7 @@ type: hit
 title: <原标题>
 author: <作者/账号>
 platform: douyin|xiaohongshu|kuaishou|...
+goal_type: <获客|引流|涨粉信任|转化|测试|unknown>   # 该条内容的目标；own 条目从内容包 goal 带入，benchmark 条目按 CTA 落点推断并注明
 published: YYYY-MM-DD
 metrics:                       # 必填：至少 1 个核心指标
   views: <播放量>
@@ -185,6 +208,7 @@ metrics:                       # 必填：至少 1 个核心指标
   shares: <分享>
 duration: <时长秒数，视频类填>
 transcript_source: <转写来自哪：自转写/工具/手抄>
+used_template: <套用的模板页双链，如 "[[templates-wiki/某模板]]">   # own 条目从内容包 used_templates 带入（单模板时）；模板验证回填靠它定位
 hook_type: <钩子类型：反差/冲突/利益/痛点/悬念>   # 必填，联动 video-structure-analysis
 structure_formula: <结构公式一句话>    # 必填，联动 competitor-pattern-mining
 why_it_worked: <为什么爆：一句话>      # 必填
@@ -204,6 +228,7 @@ type: hit
 title: 当妈后我怎么瘦的｜职场妈妈代餐实测
 author: @某某妈妈
 platform: xiaohongshu
+goal_type: 转化   # 推断依据：结尾直接挂车引导下单
 published: 2026-06-15
 metrics:
   likes: 4.2万
@@ -286,6 +311,69 @@ reusable_elements: 痛点开场公式、评论区"你们都怎么X"互动话术
 not_copyable: 创始人个人故事（IP 强绑定，照搬无效）
 updated: 2026-07-04
 source: 小红书主页，2026-07 抓取
+---
+```
+
+---
+
+## 5. 模板库 `templates-wiki/`
+
+**用途**：沉淀从爆款共性中提炼出的可复用创作模板，并跟踪每个模板被套用后的真实表现——模板按验证效果自我排序，这是"沉淀结论和能力"的核心库。
+
+**联动**：上游是 `content-toolkit/references/pattern-synthesis.md`（共性提炼产出模板候选）；下游是 `growth-content-writing`（按 goal 选验证效果最好的模板套用）；`verdicts` 验证数据来自发布回流（见 `wiki-maintenance.md` 的「发布回流」）。
+
+### 目录结构
+```
+templates-wiki/
+├── _index.md                # 模板总览：按 goal 分组 + 验证效果排序
+└── <模板名>.md              # 每个模板一个文件
+```
+
+### 单页 Schema
+
+**模板页 `<模板名>.md`**
+```yaml
+---
+type: template
+name: <模板名>
+goal: <获客|引流|涨粉信任|转化|测试>   # 必填
+platforms: [<适用平台>]
+structure_formula: <填空式结构公式>    # 必填
+elements:
+  hook: <钩子写法>
+  cta: <CTA 写法，必须与 goal 匹配>
+  tone: <语气/口头禅要点>
+source_entries: ["[[hits-wiki/benchmark/某爆款]]"]   # 必填：提炼自哪些条目的共性
+usage_count: 0                 # 被套用次数，发布回流时 +1
+verdicts: []                   # 验证记录，只在发布数据回填时写，不预填：
+                               # - {work: "[[hits-wiki/own/某作品]]", date: YYYY-MM-DD, outcome: 高于常态|均值|低于常态|无基准}
+status: 待验证                 # 待验证 | 验证中 | 已验证 | 已淘汰
+updated: YYYY-MM-DD
+---
+```
+
+**使用规则**：
+- 选模板时只按 `goal` 匹配 + `status` 排序：已验证 > 待验证 > 已淘汰（淘汰模板保留页面，作失败样本）
+- 连续 2 次 `低于常态` 的模板置为 `已淘汰`
+- 模板改动（结构调整）视为新模板，新建页面不覆盖旧的——旧模板的验证记录是资产
+
+### 示例条目（`痛点开场-反转故事-评论引导.md`）
+```yaml
+---
+type: template
+name: 痛点开场-反转故事-评论引导
+goal: 获客
+platforms: [xiaohongshu, douyin]
+structure_formula: "[痛点共鸣 5s] → [我也是这样 10s] → [直到我用了X 15s] → [引导评论'你们怎么解决' 5s]"
+elements:
+  hook: 用目标人群的一句原话开场，不加铺垫
+  cta: 评论区提问式软引导（"你们都怎么解决的"），私信入口放评论区置顶
+  tone: 第一人称实测口吻，忌"家人们"式叫卖
+source_entries: ["[[hits-wiki/benchmark/职场妈妈代餐]]", "[[hits-wiki/benchmark/通勤族早餐]]", "[[hits-wiki/benchmark/加班党速食]]"]
+usage_count: 0
+verdicts: []
+status: 待验证
+updated: 2026-07-04
 ---
 ```
 

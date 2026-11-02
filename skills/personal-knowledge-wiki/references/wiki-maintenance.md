@@ -21,7 +21,8 @@ my-wiki/
 ├── brand-wiki/            # 品牌资料库（见 wiki-schema-templates.md）
 ├── industry-wiki/         # 行业语料库
 ├── hits-wiki/             # 历史爆款库
-└── benchmarks-wiki/       # 对标账号档
+├── benchmarks-wiki/       # 对标账号档
+└── templates-wiki/        # 模板库（共性提炼的模板 + 使用验证记录）
 ```
 
 `inbox/` 是唯一允许"原始、无结构"的地方；其余目录的每个文件都必须符合对应 Schema。
@@ -123,6 +124,7 @@ wiki 的价值在于被创作技能引用。以下是标准联动协议：
 | 产出场景 | 回流到哪 | 怎么回流 |
 |---|---|---|
 | 用 `content-toolkit/competitor-pattern-mining` 拆了一条竞品爆款 | `hits-wiki/` 或 `benchmarks-wiki/` | 按 Schema 新建一条爆款拆解条目 |
+| 用 `content-toolkit/pattern-synthesis` 提炼出共性/模板候选 | `templates-wiki/` + `hits-wiki/_index.md` 规律区 | 经用户确认后按模板页 Schema 建模板页；每个 goal 的一句话共性写进规律区 |
 | 用 `growth-content-strategy/benchmark-analysis` 拆了对标账号 | `benchmarks-wiki/` | 新建/更新对标账号页面 |
 | 创作中发现新的品牌话术/产品卖点 | `brand-wiki/` | 经用户确认后补充 |
 | 分析出新的行业规律 | `industry-wiki/` | 经用户确认后补充 |
@@ -134,10 +136,11 @@ wiki 的价值在于被创作技能引用。以下是标准联动协议：
 
 发布引擎（`orchestrate` / 各平台 CLI）成功后会输出提示，把作品回流到 `hits-wiki/own/`。没有这一步，选题永远只能依赖别人的爆款，自己的数据资产建不起来。流程两步：
 
-1. **发布成功当天**：按爆款页 Schema 在 `hits-wiki/own/` 建占位条目——`platform`、`published`、`source`（作品链接，即 CLI 输出的查看链接）、`title` 填实际值；`metrics`、`why_it_worked`、`reusable_template` 留 `TBD`。
-2. **数据出来后（一般 3~7 天）**：回填 `metrics`（播放/点赞/评论/分享）、`why_it_worked`、`reusable_template`；数据明显好于常态的，在 `_index.md` 的共性规律区提炼一句可复用结论。
+1. **发布成功当天**：按爆款页 Schema 在 `hits-wiki/own/` 建占位条目——`platform`、`published`、`source`（作品链接，即 CLI 输出的查看链接）、`title` 填实际值，`goal_type` 从内容包 frontmatter 的 `goal` 带入；`metrics`、`why_it_worked`、`reusable_template` 留 `TBD`。
+2. **数据出来后（一般 3~7 天）**：回填 `metrics`（播放/点赞/评论/分享）、`why_it_worked`、`reusable_template`；数据明显好于常态的，在 `_index.md` 的共性规律区提炼一句可复用结论。**常态 = 同平台近 10 条自有作品的该指标中位数**（不足 10 条前用已有全部条目的中位数）。
+3. **模板验证回填（内容包声明了 `used_templates` 时）**：给对应模板页 `usage_count +1`，并在 `verdicts` 追加一条 `{work: 该作品条目, date, outcome}`；`outcome` 按 goal 的主指标对比常态判定（高于常态/均值/低于常态）。**own 库尚无历史条目时 outcome 记 `无基准`**（usage_count 照加），待基准建立后回改最早几条的 verdict。连续 2 次"低于常态"的模板置为 `已淘汰`，页面保留作失败样本。
 
-**回流硬约束**：占位条目必须当天建（链接易丢）；`metrics` 只填平台后台实际数据，不估数；表现差的条目**同样保留**——失败样本对选题校验同样有价值，在 `why_it_worked` 写「未起量，疑似 XX 原因」。
+**回流硬约束**：占位条目必须当天建（链接易丢）；`metrics` 只填平台后台实际数据，不估数；表现差的条目**同样保留**——失败样本对选题校验同样有价值，在 `why_it_worked` 写「未起量，疑似 XX 原因」；`verdicts` 只写已回填真实数据的作品，不预填。
 
 ## 硬约束（本工作流通用）
 
