@@ -16,6 +16,9 @@ import { type PublishResult } from "../publish-result.js";
 const CREATOR_URL = "https://creator.xiaohongshu.com/";
 const LOGIN_URL = "https://creator.xiaohongshu.com/login";
 const PUBLISH_URL = "https://creator.xiaohongshu.com/publish/publish";
+// accept 可能是 MIME（image/*）或扩展名（.png,.jpg,.jpeg,.webp），两种都要认。
+const IMAGE_ACCEPT_RE = /image|\.png|\.jpe?g|\.webp/i;
+const VIDEO_ACCEPT_RE = /video|\.mp4|\.mov|\.avi|\.flv|\.mkv/i;
 const TITLE_SELECTORS = [
   "input[placeholder*='标题']",
   "textarea[placeholder*='标题']",
@@ -350,6 +353,10 @@ async function clickTab(page: Page, mode: UploadMode): Promise<void> {
         // 只要叶子级精确匹配，避免点到"上传视频 上传图文"这种合并外层
         if (text !== label) continue;
         await tab.click({ force: true }).catch(() => {});
+        // 视口外的 tab（hover 态克隆节点）force click 无法命中，退回 DOM click 触发 SPA 事件。
+        if (!(await hasModeFileInput(page, mode))) {
+          await tab.evaluate((el) => (el as HTMLElement).click()).catch(() => {});
+        }
         await sleep(1200);
         // 用"图片 input 是否真的出现"做最终验证，比看文字可靠得多。
         if (await hasModeFileInput(page, mode)) return;
@@ -364,9 +371,8 @@ async function hasModeFileInput(page: Page, mode: UploadMode): Promise<boolean> 
   for (let i = 0; i < count; i++) {
     const fileInput = inputs.nth(i);
     const accept = (await fileInput.getAttribute("accept").catch(() => "")) ?? "";
-    // accept 可能是 MIME（image/*）或扩展名（.png,.jpg,.jpeg,.webp），两种都要认。
-    if (mode === "note" && /image|\.png|\.jpe?g|\.webp/i.test(accept)) return true;
-    if (mode === "video" && /video|\.mp4|\.mov|\.avi|\.flv|\.mkv/i.test(accept)) return true;
+    if (mode === "note" && IMAGE_ACCEPT_RE.test(accept)) return true;
+    if (mode === "video" && VIDEO_ACCEPT_RE.test(accept)) return true;
   }
   return false;
 }
@@ -387,14 +393,16 @@ async function waitForFileInput(page: Page, mode: UploadMode): Promise<Locator> 
     for (let i = 0; i < count; i++) {
       const fileInput = inputs.nth(i);
       const accept = (await fileInput.getAttribute("accept").catch(() => "")) ?? "";
-      // accept 可能是 MIME（image/*）或扩展名（.png,.jpg,.jpeg,.webp），两种都要认。
-      if (mode === "note" && /image|\.png|\.jpe?g|\.webp/i.test(accept)) return fileInput;
-      if (mode === "video" && /video|\.mp4|\.mov|\.avi|\.flv|\.mkv/i.test(accept)) return fileInput;
+      if (mode === "note" && IMAGE_ACCEPT_RE.test(accept)) return fileInput;
+      if (mode === "video" && VIDEO_ACCEPT_RE.test(accept)) return fileInput;
     }
     if (count > 0) {
       // setInputFiles 不要求 input 可见；小红书的 file input 通常是隐藏的（靠 label 触发）。
-      // 当前 tab 只有一个 file input 时，直接用即可。
-      return inputs.first();
+      // 仅当现有 input 不明确属于另一模式时才兜底；accept 是另一模式的，说明 tab 未切换，继续等待。
+      const fallbackAccept = (await inputs.first().getAttribute("accept").catch(() => "")) ?? "";
+      const belongsToOtherMode =
+        mode === "note" ? VIDEO_ACCEPT_RE.test(fallbackAccept) : IMAGE_ACCEPT_RE.test(fallbackAccept);
+      if (!belongsToOtherMode) return inputs.first();
     }
     await sleep(500);
   }
