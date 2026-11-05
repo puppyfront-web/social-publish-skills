@@ -14,7 +14,7 @@
 
 ```text
 node dist/cli.js <tencent|douyin|kuaishou> <check|login|upload> [选项]
-node dist/cli.js xiaohongshu <check|login|upload-video|upload-note> [选项]
+node dist/cli.js xiaohongshu <check|login|upload-video|upload-note|stats> [选项]
 node dist/cli.js <wechatmp|zhihu|baijiahao> <check|login|publish> [选项]
 ```
 
@@ -29,6 +29,7 @@ node dist/cli.js <wechatmp|zhihu|baijiahao> <check|login|publish> [选项]
 | 发一个视频 | `node dist/cli.js <平台> upload --account <别名> --file <绝对路径> --title "..."` |
 | 发小红书视频 | `node dist/cli.js xiaohongshu upload-video --account <别名> --file <绝对路径> --title "..."` |
 | 发小红书图文 | `node dist/cli.js xiaohongshu upload-note --account <别名> --images <绝对路径...> --title "..."` |
+| 抓小红书创作者后台数据 | `node dist/cli.js xiaohongshu stats --account <别名>`（快照落 `~/.social-publish-skills/accounts/xiaohongshu/<别名>/snapshots/`，供账号诊断与周复盘） |
 | 发公众号图文 | `node dist/cli.js wechatmp publish --account <别名> --source <绝对路径或URL> --title "..."` |
 | 发知乎文章 | `node dist/cli.js zhihu publish --account <别名> --source <绝对路径或URL> --title "..."` |
 | 发百家号文章 | `node dist/cli.js baijiahao publish --account <别名> --source <绝对路径或URL> --title "..."` |

@@ -21,6 +21,7 @@ import {
   publishXiaohongshuNote,
   publishXiaohongshuVideo,
 } from "./platforms/xiaohongshu.js";
+import { fetchXiaohongshuCreatorStats } from "./platforms/xiaohongshu-stats.js";
 import {
   cookieAuth as wechatmpCookieAuth,
   loginAndSaveCookie as wechatmpLogin,
@@ -334,6 +335,16 @@ xiaohongshu
       draft: Boolean(opts.draft),
     });
     logPublishResult(result);
+  });
+
+xiaohongshu
+  .command("stats")
+  .requiredOption("--account <name>", "账号名")
+  .option("--out <dir>", "快照输出目录（默认账号档案 snapshots/）")
+  .action(async (opts) => {
+    const p = resolveXiaohongshuCookiePath(opts.account);
+    const file = await fetchXiaohongshuCreatorStats(p, opts.account, opts.out);
+    console.log("saved:", file);
   });
 
 // ─── 微信公众号图文 ────────────────────────────────────────────
