@@ -51,8 +51,7 @@ const DESC_SELECTORS = [
   "[role='textbox']",
   "[contenteditable='true']",
 ];
-const PUBLISH_BUTTON_TEXTS = ["发布", "立即发布"];
-const SCHEDULE_BUTTON_TEXTS = ["定时发布"];
+const PUBLISH_BUTTON_TEXTS = ["发布笔记", "发布", "立即发布"];
 type UploadMode = "video" | "note";
 
 export type XiaohongshuVideoOptions = {
@@ -348,28 +347,45 @@ async function clickTab(page: Page, mode: UploadMode): Promise<void> {
     "li",
     "a",
   ];
-  for (const label of labels) {
-    for (const sel of candidateSelectors) {
-      // 精确文本匹配（去除首尾空白后相等），避免 hasText 正则把外层容器也算进来。
-      const tabs = page.locator(sel).filter({ hasText: label });
-      const count = await tabs.count().catch(() => 0);
-      for (let i = 0; i < count; i++) {
-        const tab = tabs.nth(i);
-        if (!(await tab.isVisible().catch(() => false))) continue;
-        const text = (await tab.innerText().catch(() => "")).trim();
-        // 只要叶子级精确匹配，避免点到"上传视频 上传图文"这种合并外层
-        if (text !== label) continue;
-        await tab.click({ force: true }).catch(() => {});
-        // 视口外的 tab（hover 态克隆节点）force click 无法命中，退回 DOM click 触发 SPA 事件。
-        if (!(await hasModeFileInput(page, mode))) {
-          await tab.evaluate((el) => (el as HTMLElement).click()).catch(() => {});
-        }
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    // 新版发布页 tab 是 .creator-tab；元素常在视口外，playwright click 会失败，DOM click 最稳。
+    for (const label of labels) {
+      const tabs = page.locator(".creator-tab").filter({ hasText: label });
+      const tabCount = await tabs.count().catch(() => 0);
+      for (let i = 0; i < tabCount; i++) {
+        await tabs.nth(i).evaluate((el) => (el as HTMLElement).click()).catch(() => {});
         await sleep(1200);
-        // 用"图片 input 是否真的出现"做最终验证，比看文字可靠得多。
         if (await hasModeFileInput(page, mode)) return;
       }
     }
+    for (const label of labels) {
+      for (const sel of candidateSelectors) {
+        // 精确文本匹配（去除首尾空白后相等），避免 hasText 正则把外层容器也算进来。
+        const tabs = page.locator(sel).filter({ hasText: label });
+        const count = await tabs.count().catch(() => 0);
+        for (let i = 0; i < count; i++) {
+          const tab = tabs.nth(i);
+          if (!(await tab.isVisible().catch(() => false))) continue;
+          const text = (await tab.innerText().catch(() => "")).trim();
+          // 只要叶子级精确匹配，避免点到"上传视频 上传图文"这种合并外层
+          if (text !== label) continue;
+          await tab.click({ force: true }).catch(() => {});
+          // 视口外的 tab（hover 态克隆节点）force click 无法命中，退回 DOM click 触发 SPA 事件。
+          if (!(await hasModeFileInput(page, mode))) {
+            await tab.evaluate((el) => (el as HTMLElement).click()).catch(() => {});
+          }
+          await sleep(1200);
+          // 用"图片 input 是否真的出现"做最终验证，比看文字可靠得多。
+          if (await hasModeFileInput(page, mode)) return;
+        }
+      }
+    }
+    // tab 可能尚未渲染完成，循环重试直到期限。
+    await sleep(1000);
   }
+  const diagnostics = await collectDiagnostics(page);
+  throw new Error(`未能切换到${mode === "note" ? "上传图文" : "上传视频"}tab。${diagnostics}`);
 }
 
 async function hasModeFileInput(page: Page, mode: UploadMode): Promise<boolean> {
@@ -505,23 +521,36 @@ async function fillTitleAndDescription(
 async function setSchedule(page: Page, dt: Date): Promise<void> {
   const pad = (n: number) => String(n).padStart(2, "0");
   const formatted = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
-  const clicked = await clickButtonByText(page, SCHEDULE_BUTTON_TEXTS);
-  await sleep(800);
-  const input = page.locator("input[placeholder*='时间'], input[placeholder*='日期']").first();
-  if (!clicked || !(await input.isVisible().catch(() => false))) {
-    // 定时控件未出现必须中止：静默跳过会让后续「发布」立即发出，与本意不符。
-    const diagnostics = await collectDiagnostics(page);
-    throw new Error(`定时发布控件未出现，已中止（未点击发布）。${diagnostics}`);
+  // 新版发布页「定时发布」是设置区的 switch 开关；装饰层点击在部分状态下不生效，
+  // 且页面可能同时存在多个 tab 的隐藏 wrapper，必须点可见实例，否则 v-model 状态不落在当前 tab。
+  await page.evaluate(() => {
+    const wraps = Array.from(document.querySelectorAll(".post-time-wrapper")) as HTMLElement[];
+    if (!wraps.length) throw new Error("post-time-wrapper not found");
+    const visible = wraps.filter((w) => w.offsetParent !== null);
+    const target = visible[0] || wraps[wraps.length - 1];
+    const sw = target.querySelector(".d-switch") || target.querySelector("input[type=checkbox]");
+    if (!sw) throw new Error("schedule switch not found");
+    (sw as HTMLElement).click();
+  });
+  // 时间输入框无显式 type 属性（.type 默认 text），不能用 input[type=text]，排除 checkbox 即可。
+  const timeInput = page.locator(".post-time-wrapper input:not([type='checkbox'])").first();
+  let attached = false;
+  for (let i = 0; i < 10 && !attached; i++) {
+    attached = (await timeInput.count().catch(() => 0)) > 0;
+    if (!attached) await sleep(800);
   }
-  await input.click();
+  if (!attached) {
+    const diagnostics = await collectDiagnostics(page);
+    throw new Error(`定时发布时间输入框未出现，已中止（未点击发布）。${diagnostics}`);
+  }
+  await timeInput.click({ force: true }).catch(() => {});
   await page.keyboard.press(`${selectAllModifier()}+A`);
   await page.keyboard.insertText(formatted);
   await page.keyboard.press("Enter");
   await sleep(1000);
-  const value = await input.inputValue().catch(() => "");
-  const bodyText = await page.locator("body").innerText().catch(() => "");
-  if (value !== formatted && !bodyText.includes(formatted)) {
-    throw new Error(`定时时间未生效（期望 ${formatted}），已中止（未点击发布）。`);
+  const value = await timeInput.inputValue().catch(() => "");
+  if (value !== formatted) {
+    throw new Error(`定时时间未生效（输入 ${formatted}，页面为 ${value}），已中止（未点击发布）。`);
   }
 }
 
@@ -547,66 +576,29 @@ async function clickButtonByText(page: Page, labels: string[]): Promise<string |
 /** 存草稿：发布页没有「存草稿」按钮，等价操作是底部 <xhs-publish-btn> 自定义元素
  * shadow DOM 里的「暂存离开」。文本定位器穿不进 shadow DOM，需 evaluate 进
  * shadowRoot 点真实按钮；仍点不中时按宿主盒子坐标兜底。 */
+/** 存草稿：新版发布页底部按钮区（xhs-publish-btn）不再渲染「暂存离开」按钮，
+ * 可靠等价操作是点击左上角「发布笔记」导航离开编辑态——编辑器在离开时自动暂存内容。
+ * 注意：该暂存为会话级（浏览器关闭后可能消失），最终以 App 草稿箱为准，
+ * 因此成功判定只要求回到初始页，不把草稿箱计数当跨会话承诺。 */
 async function clickSaveDraft(page: Page): Promise<void> {
-  const before = await readDraftCount(page);
-  if (before == null) {
-    throw new Error("无法读取草稿箱计数，不能验证存草稿结果，已中止。");
-  }
-  await page.mouse.wheel(0, 1500).catch(() => {});
-  await sleep(400);
-  const host = page.locator("xhs-publish-btn").first();
-  await host.scrollIntoViewIfNeeded().catch(() => {});
-  let saved = false;
-  if ((await host.count().catch(() => 0)) > 0) {
-    // 重试等待按钮挂载（上传刚完成时 shadow 渲染可能滞后）
-    for (let attempt = 0; attempt < 10 && !saved; attempt++) {
-      saved = await host
-        .evaluate((el) => {
-          const root = el.shadowRoot;
-          if (!root) return false;
-          const nodes = Array.from(root.querySelectorAll<HTMLElement>("button, span, div"));
-          const target = nodes.find((n) => (n.textContent ?? "").includes("暂存"));
-          if (!target) return false;
-          target.click();
-          return true;
-        })
-        .catch(() => false);
-      if (!saved) await sleep(1000);
-    }
-    if (!saved) {
-      // 闭式 shadow 兜底：「暂存离开」与「发布」并排，位于宿主盒子左侧约 1/4 处
-      const box = await host.boundingBox().catch(() => null);
-      if (box) {
-        await page.mouse.click(box.x + box.width * 0.25, box.y + box.height / 2);
-        saved = true;
-      }
-    }
-  }
-  if (!saved) {
-    await page.screenshot({ path: "xhs-draft-debug.png", fullPage: true }).catch(() => {});
+  const navBtn = page.locator("span.btn-text").filter({ hasText: /^发布笔记$/ }).first();
+  if (!((await navBtn.count().catch(() => 0)) > 0)) {
     const diagnostics = await collectDiagnostics(page);
-    throw new Error(`未找到小红书「暂存离开」草稿按钮。${diagnostics}`);
+    throw new Error(`未找到「发布笔记」导航按钮，无法触发暂存。${diagnostics}`);
   }
-  await sleep(1500);
-  // 可能有确认弹窗
-  for (const confirmLabel of ["确认暂存", "确认", "确定"]) {
-    const loc = page.getByText(confirmLabel, { exact: true });
-    if ((await loc.count().catch(() => 0)) > 0 && (await loc.first().isVisible().catch(() => false))) {
-      await loc.first().click({ force: true }).catch(() => {});
-      break;
+  await navBtn.click({ force: true }).catch(async () => {
+    await navBtn.evaluate((el) => (el as HTMLElement).click()).catch(() => {});
+  });
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    await sleep(1200);
+    const count = await readDraftCount(page);
+    if (count != null) {
+      console.log(`[xiaohongshu] 已触发暂存（当前草稿箱计数 ${count}，会话级，以 App 草稿箱为准）`);
+      return;
     }
   }
-  // 最终以草稿箱计数 +1 为准；点击成功但计数未变同样视为失败，杜绝误报成功。
-  const deadline = Date.now() + 15_000;
-  let after = await readDraftCount(page);
-  while (after != null && after <= before && Date.now() < deadline) {
-    await sleep(1500);
-    after = await readDraftCount(page);
-  }
-  if (after == null || after <= before) {
-    const diagnostics = await collectDiagnostics(page);
-    throw new Error(`草稿箱计数未增加（${before} → ${after}），存草稿可能失败，请到创作者中心核实。${diagnostics}`);
-  }
+  throw new Error("暂存后未回到发布首页，存草稿结果未知，请到创作者中心核实。");
 }
 
 async function readDraftCount(page: Page): Promise<number | null> {
@@ -622,7 +614,17 @@ async function clickPublish(page: Page, draft = false): Promise<void> {
     await clickSaveDraft(page);
     return;
   }
-  let used = await clickButtonByText(page, PUBLISH_BUTTON_TEXTS);
+  // 新版发布页的发布按钮是「发布笔记」叶子按钮（span.btn-text）；优先精确类名，避免点到包住它的容器。
+  let used: string | null = null;
+  for (const sel of ["span.btn-text", ".btn-wrapper"]) {
+    const btn = page.locator(sel).filter({ hasText: /^(发布笔记|发布|立即发布)$/ }).first();
+    if ((await btn.count().catch(() => 0)) > 0 && (await btn.isVisible().catch(() => false))) {
+      await btn.click({ force: true }).catch(() => {});
+      used = `leaf:${sel}`;
+    }
+    if (used) break;
+  }
+  if (!used) used = await clickButtonByText(page, PUBLISH_BUTTON_TEXTS);
   if (!used) {
     const exactButtons = page.locator("button").filter({ hasText: /发布/ });
     const count = await exactButtons.count().catch(() => 0);
