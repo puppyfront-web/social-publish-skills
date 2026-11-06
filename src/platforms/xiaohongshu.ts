@@ -128,6 +128,13 @@ type XiaohongshuUploadWaitInput = {
 
 const PROCESSING_TEXT_RE = /上传中|处理中|上传完成前|校验中|处理中，请稍候/;
 const PUBLISH_ACTION_RE = /发布|立即发布|定时发布/;
+const PUBLISH_SUCCESS_RE = /发布成功|审核中|已提交|定时发布成功|定时成功/;
+
+/** 动作按钮只认整词匹配：「发布」不能命中侧边栏「发布笔记」或包含多个按钮的外层容器。 */
+export function isExactActionText(text: string, labels: string[]): boolean {
+  const t = text.trim();
+  return labels.some((l) => t === l);
+}
 const READY_POLLS_THRESHOLD = 2;
 
 export function shouldXiaohongshuWaitForUpload(input: XiaohongshuUploadWaitInput): boolean {
@@ -498,26 +505,41 @@ async function fillTitleAndDescription(
 async function setSchedule(page: Page, dt: Date): Promise<void> {
   const pad = (n: number) => String(n).padStart(2, "0");
   const formatted = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
-  await clickButtonByText(page, SCHEDULE_BUTTON_TEXTS);
+  const clicked = await clickButtonByText(page, SCHEDULE_BUTTON_TEXTS);
   await sleep(800);
   const input = page.locator("input[placeholder*='时间'], input[placeholder*='日期']").first();
-  if (await input.isVisible().catch(() => false)) {
-    await input.click();
-    await page.keyboard.press(`${selectAllModifier()}+A`);
-    await page.keyboard.insertText(formatted);
-    await page.keyboard.press("Enter");
+  if (!clicked || !(await input.isVisible().catch(() => false))) {
+    // 定时控件未出现必须中止：静默跳过会让后续「发布」立即发出，与本意不符。
+    const diagnostics = await collectDiagnostics(page);
+    throw new Error(`定时发布控件未出现，已中止（未点击发布）。${diagnostics}`);
+  }
+  await input.click();
+  await page.keyboard.press(`${selectAllModifier()}+A`);
+  await page.keyboard.insertText(formatted);
+  await page.keyboard.press("Enter");
+  await sleep(1000);
+  const value = await input.inputValue().catch(() => "");
+  const bodyText = await page.locator("body").innerText().catch(() => "");
+  if (value !== formatted && !bodyText.includes(formatted)) {
+    throw new Error(`定时时间未生效（期望 ${formatted}），已中止（未点击发布）。`);
   }
 }
 
 async function clickButtonByText(page: Page, labels: string[]): Promise<string | null> {
   for (const label of labels) {
-    const button = page
+    const candidates = page
       .locator("button, [role='button'], div, span")
-      .filter({ hasText: new RegExp(label) })
-      .first();
-    if (!(await button.isVisible().catch(() => false))) continue;
-    await button.click({ force: true });
-    return label;
+      .filter({ hasText: new RegExp(label) });
+    const count = await candidates.count().catch(() => 0);
+    for (let i = 0; i < count; i++) {
+      const el = candidates.nth(i);
+      if (!(await el.isVisible().catch(() => false))) continue;
+      const text = (await el.innerText().catch(() => "")).trim();
+      // 只要整词匹配的叶子级元素，避免点到「发布笔记」菜单项或包住多个按钮的外层容器。
+      if (!isExactActionText(text, [label])) continue;
+      await el.click({ force: true });
+      return label;
+    }
   }
   return null;
 }
@@ -526,6 +548,10 @@ async function clickButtonByText(page: Page, labels: string[]): Promise<string |
  * shadow DOM 里的「暂存离开」。文本定位器穿不进 shadow DOM，需 evaluate 进
  * shadowRoot 点真实按钮；仍点不中时按宿主盒子坐标兜底。 */
 async function clickSaveDraft(page: Page): Promise<void> {
+  const before = await readDraftCount(page);
+  if (before == null) {
+    throw new Error("无法读取草稿箱计数，不能验证存草稿结果，已中止。");
+  }
   await page.mouse.wheel(0, 1500).catch(() => {});
   await sleep(400);
   const host = page.locator("xhs-publish-btn").first();
@@ -570,7 +596,23 @@ async function clickSaveDraft(page: Page): Promise<void> {
       break;
     }
   }
-  await sleep(2000);
+  // 最终以草稿箱计数 +1 为准；点击成功但计数未变同样视为失败，杜绝误报成功。
+  const deadline = Date.now() + 15_000;
+  let after = await readDraftCount(page);
+  while (after != null && after <= before && Date.now() < deadline) {
+    await sleep(1500);
+    after = await readDraftCount(page);
+  }
+  if (after == null || after <= before) {
+    const diagnostics = await collectDiagnostics(page);
+    throw new Error(`草稿箱计数未增加（${before} → ${after}），存草稿可能失败，请到创作者中心核实。${diagnostics}`);
+  }
+}
+
+async function readDraftCount(page: Page): Promise<number | null> {
+  const text = await page.locator("body").innerText().catch(() => "");
+  const m = text.match(/草稿箱\((\d+)\)/);
+  return m ? Number(m[1]) : null;
 }
 
 async function clickPublish(page: Page, draft = false): Promise<void> {
@@ -582,11 +624,12 @@ async function clickPublish(page: Page, draft = false): Promise<void> {
   }
   let used = await clickButtonByText(page, PUBLISH_BUTTON_TEXTS);
   if (!used) {
-    const exactButtons = page.locator("button").filter({ hasText: /发布|立即发布|发布笔记/ });
+    const exactButtons = page.locator("button").filter({ hasText: /发布/ });
     const count = await exactButtons.count().catch(() => 0);
     for (let i = 0; i < count; i++) {
       const button = exactButtons.nth(i);
       if (!(await button.isVisible().catch(() => false))) continue;
+      if (!isExactActionText((await button.innerText().catch(() => "")), PUBLISH_BUTTON_TEXTS)) continue;
       await button.scrollIntoViewIfNeeded().catch(() => {});
       await button.click({ force: true }).catch(() => {});
       used = "button:发布";
@@ -597,7 +640,29 @@ async function clickPublish(page: Page, draft = false): Promise<void> {
     const diagnostics = await collectDiagnostics(page);
     throw new Error(`未找到小红书发布按钮。${diagnostics}`);
   }
-  await sleep(2500);
+  await waitPublishFeedback(page);
+}
+
+/** 发布点击后的成功验证：出现成功文案、离开发布页，或出现确认弹窗（点击后重等）。
+ * 检测不到反馈时抛错，宁可误报失败让人工核实，不误报成功。 */
+async function waitPublishFeedback(page: Page): Promise<void> {
+  const deadline = Date.now() + 25_000;
+  while (Date.now() < deadline) {
+    const text = await page.locator("body").innerText().catch(() => "");
+    if (PUBLISH_SUCCESS_RE.test(text)) return;
+    if (!page.url().includes("/publish/publish")) return;
+    for (const confirmLabel of ["确认发布", "确认定时发布", "确认", "确定"]) {
+      const loc = page.getByText(confirmLabel, { exact: true });
+      if ((await loc.count().catch(() => 0)) > 0 && (await loc.first().isVisible().catch(() => false))) {
+        await loc.first().click({ force: true }).catch(() => {});
+        await sleep(1500);
+        break;
+      }
+    }
+    await sleep(1000);
+  }
+  const diagnostics = await collectDiagnostics(page);
+  throw new Error(`点击发布后未检测到成功反馈，内容可能未发布，请到创作者中心核实。${diagnostics}`);
 }
 
 async function waitForUploadReady(page: Page): Promise<void> {
