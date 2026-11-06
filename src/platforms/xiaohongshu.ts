@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import { type Locator, type Page } from "playwright";
+import { type BrowserContext, type Locator, type Page } from "playwright";
 import { selectAllModifier } from "../config.js";
 import {
   applyStealthScript,
@@ -11,6 +11,7 @@ import {
 } from "../browser.js";
 import { emit } from "../progress.js";
 import { resolveXiaohongshuCookiePath } from "../paths.js";
+import { parseNoteList } from "./xiaohongshu-stats.js";
 import { type PublishResult } from "../publish-result.js";
 
 const CREATOR_URL = "https://creator.xiaohongshu.com/";
@@ -554,6 +555,63 @@ async function setSchedule(page: Page, dt: Date): Promise<void> {
   }
 }
 
+/** 捕获 closed shadow root 引用：新版发布页的「发布/暂存离开」按钮在 xhs-publish-btn 的
+ * closed shadow DOM 里，el.shadowRoot 对外不可见、querySelectorAll 穿不透，
+ * 必须在页面任何脚本执行前 hook attachShadow 记录 root 引用。 */
+export async function captureShadowRoots(ctx: BrowserContext): Promise<void> {
+  await ctx.addInitScript(() => {
+    const orig = Element.prototype.attachShadow;
+    const w = window as unknown as {
+      __shadowRoots: Array<{ host: string; mode: string; root: ShadowRoot }>;
+    };
+    w.__shadowRoots = [];
+    Element.prototype.attachShadow = function (this: Element, init: ShadowRootInit) {
+      const root = orig.call(this, init);
+      w.__shadowRoots.push({ host: this.tagName.toLowerCase(), mode: init.mode, root });
+      return root;
+    };
+  });
+}
+
+/** 在已捕获的 shadow root 里按整词文本点击按钮。
+ * 页面路由切换会让组件重挂载：旧实例 root 留在捕获列表里但已脱离文档（点击无效），
+ * 因此只点 isConnected 的按钮；按钮挂载有时序差异，带重试等待。 */
+async function clickShadowButton(page: Page, label: string, timeoutMs = 15_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  let lastButtons = "";
+  while (Date.now() < deadline) {
+    const clicked = await page
+      .evaluate((text) => {
+        const w = window as unknown as {
+          __shadowRoots?: Array<{ host: string; root: ShadowRoot }>;
+        };
+        const roots = w.__shadowRoots;
+        if (!roots) return { clicked: false, roots: -1, buttons: "" };
+        const buttons: string[] = [];
+        for (const { root } of roots) {
+          if (!root.host.isConnected) continue;
+          for (const b of Array.from(root.querySelectorAll("button"))) {
+            const t = (b.textContent || "").trim();
+            buttons.push(t);
+            if (t === text) {
+              b.click();
+              return { clicked: true, roots: roots.length, buttons: buttons.join(",") };
+            }
+          }
+        }
+        return { clicked: false, roots: roots.length, buttons: buttons.join(",") };
+      }, label)
+      .catch(() => ({ clicked: false, roots: -1, buttons: "" }));
+    if (clicked.clicked) return true;
+    lastButtons = clicked.buttons;
+    if (clicked.roots === -1) console.log("[xiaohongshu] shadowRoot hook 未生效，等待重试…");
+    else if (!clicked.buttons) console.log("[xiaohongshu] shadow root 内暂无按钮，等待挂载…");
+    await sleep(1200);
+  }
+  console.log(`[xiaohongshu] shadow root 内未找到「${label}」按钮（可见按钮: ${lastButtons || "无"}）`);
+  return false;
+}
+
 async function clickButtonByText(page: Page, labels: string[]): Promise<string | null> {
   for (const label of labels) {
     const candidates = page
@@ -576,11 +634,19 @@ async function clickButtonByText(page: Page, labels: string[]): Promise<string |
 /** 存草稿：发布页没有「存草稿」按钮，等价操作是底部 <xhs-publish-btn> 自定义元素
  * shadow DOM 里的「暂存离开」。文本定位器穿不进 shadow DOM，需 evaluate 进
  * shadowRoot 点真实按钮；仍点不中时按宿主盒子坐标兜底。 */
-/** 存草稿：新版发布页底部按钮区（xhs-publish-btn）不再渲染「暂存离开」按钮，
- * 可靠等价操作是点击左上角「发布笔记」导航离开编辑态——编辑器在离开时自动暂存内容。
- * 注意：该暂存为会话级（浏览器关闭后可能消失），最终以 App 草稿箱为准，
- * 因此成功判定只要求回到初始页，不把草稿箱计数当跨会话承诺。 */
+/** 存草稿：优先点击 closed shadow DOM 里的「暂存离开」（真正的暂存动作）；
+ * 按钮不可用时回退为导航离开触发编辑器自动暂存（会话级，以 App 草稿箱为准）。 */
 async function clickSaveDraft(page: Page): Promise<void> {
+  if (await clickShadowButton(page, "暂存离开")) {
+    await sleep(3000);
+    const count = await readDraftCount(page);
+    console.log(
+      count != null
+        ? `[xiaohongshu] 已点击「暂存离开」（草稿箱计数 ${count}）`
+        : "[xiaohongshu] 已点击「暂存离开」"
+    );
+    return;
+  }
   const navBtn = page.locator("span.btn-text").filter({ hasText: /^发布笔记$/ }).first();
   if (!((await navBtn.count().catch(() => 0)) > 0)) {
     const diagnostics = await collectDiagnostics(page);
@@ -607,11 +673,22 @@ async function readDraftCount(page: Page): Promise<number | null> {
   return m ? Number(m[1]) : null;
 }
 
-async function clickPublish(page: Page, draft = false): Promise<void> {
+async function clickPublish(
+  page: Page,
+  draft = false,
+  baselineTotal: number | null = null,
+  scheduled = false
+): Promise<void> {
   await page.mouse.wheel(0, 1200).catch(() => {});
   await sleep(500);
   if (draft) {
     await clickSaveDraft(page);
+    return;
+  }
+  // 新版发布页的提交按钮在 closed shadow DOM 里；开启定时开关后文案由「发布」变为「定时发布」。
+  const publishLabel = scheduled ? "定时发布" : "发布";
+  if (await clickShadowButton(page, publishLabel)) {
+    await waitPublishFeedback(page, baselineTotal);
     return;
   }
   // 新版发布页的发布按钮是「发布笔记」叶子按钮（span.btn-text）；优先精确类名，避免点到包住它的容器。
@@ -642,29 +719,56 @@ async function clickPublish(page: Page, draft = false): Promise<void> {
     const diagnostics = await collectDiagnostics(page);
     throw new Error(`未找到小红书发布按钮。${diagnostics}`);
   }
-  await waitPublishFeedback(page);
+  await waitPublishFeedback(page, baselineTotal);
 }
 
-/** 发布点击后的成功验证：出现成功文案、离开发布页，或出现确认弹窗（点击后重等）。
- * 检测不到反馈时抛错，宁可误报失败让人工核实，不误报成功。 */
-async function waitPublishFeedback(page: Page): Promise<void> {
+/** 读取笔记管理「全部」总数，作为发布提交的强验证基数（定时中/审核中会计入）。 */
+async function readNoteTotal(page: Page): Promise<number | null> {
+  await page.goto("https://creator.xiaohongshu.com/new/note-manager", {
+    waitUntil: "domcontentloaded",
+    timeout: 60_000,
+  }).catch(() => null);
+  await sleep(5000);
+  const text = await page.locator("body").innerText().catch(() => "");
+  return parseNoteList(text).total;
+}
+
+/** 发布点击后的成功验证：出现成功文案、离开发布页或跳回 from=menu 仅是「信号」，
+ * 最终以笔记总数 +1 为准（导航跳转与成功跳转的 URL 相同，只有总数能区分）。 */
+async function waitPublishFeedback(page: Page, baselineTotal: number | null): Promise<void> {
   const deadline = Date.now() + 25_000;
-  while (Date.now() < deadline) {
+  let sawSignal = false;
+  while (Date.now() < deadline && !sawSignal) {
     const text = await page.locator("body").innerText().catch(() => "");
-    if (PUBLISH_SUCCESS_RE.test(text)) return;
-    if (!page.url().includes("/publish/publish")) return;
-    for (const confirmLabel of ["确认发布", "确认定时发布", "确认", "确定"]) {
-      const loc = page.getByText(confirmLabel, { exact: true });
-      if ((await loc.count().catch(() => 0)) > 0 && (await loc.first().isVisible().catch(() => false))) {
-        await loc.first().click({ force: true }).catch(() => {});
-        await sleep(1500);
-        break;
+    if (PUBLISH_SUCCESS_RE.test(text)) sawSignal = true;
+    else if (!page.url().includes("/publish/publish")) sawSignal = true;
+    // 提交成功后新版页面跳回发布首页（from=menu），编辑态 URL 是 from=tab_switch。
+    else if (page.url().includes("from=menu")) sawSignal = true;
+    if (!sawSignal) {
+      for (const confirmLabel of ["确认发布", "确认定时发布", "确认", "确定"]) {
+        const loc = page.getByText(confirmLabel, { exact: true });
+        if ((await loc.count().catch(() => 0)) > 0 && (await loc.first().isVisible().catch(() => false))) {
+          await loc.first().click({ force: true }).catch(() => {});
+          await sleep(1500);
+          break;
+        }
       }
+      await sleep(1000);
     }
-    await sleep(1000);
   }
-  const diagnostics = await collectDiagnostics(page);
-  throw new Error(`点击发布后未检测到成功反馈，内容可能未发布，请到创作者中心核实。${diagnostics}`);
+  if (!sawSignal) {
+    const diagnostics = await collectDiagnostics(page);
+    throw new Error(`点击发布后未检测到成功反馈，内容可能未发布，请到创作者中心核实。${diagnostics}`);
+  }
+  if (baselineTotal != null) {
+    const after = await readNoteTotal(page);
+    if (after == null || after <= baselineTotal) {
+      throw new Error(
+        `发布信号已出现但笔记总数未增加（${baselineTotal} → ${after}），提交可能失败，请到创作者中心核实。`
+      );
+    }
+    console.log(`[xiaohongshu] 笔记总数 ${baselineTotal} → ${after}，提交已生效`);
+  }
 }
 
 async function waitForUploadReady(page: Page): Promise<void> {
@@ -714,9 +818,11 @@ export async function publishXiaohongshuVideo(
   const browser = await launchBrowser(false);
   const ctx = await browser.newContext({ storageState: storagePath, locale: "zh-CN" });
   await applyStealthScript(ctx);
+  await captureShadowRoots(ctx);
   const page = await ctx.newPage();
   try {
     emit(4, total, "OPEN_PUBLISH_PAGE", "打开小红书发布页");
+    const baselineTotal = opts.draft ? null : await readNoteTotal(page);
     await openPublishPage(page, storagePath);
     await clickTab(page, "video");
     emit(5, total, "UPLOAD_START", path.basename(videoPath));
@@ -726,7 +832,7 @@ export async function publishXiaohongshuVideo(
     await waitForUploadReady(page);
     if (opts.schedule) await setSchedule(page, opts.schedule);
     emit(7, total, "PUBLISHING", opts.draft ? "存草稿" : "发布");
-    await clickPublish(page, opts.draft);
+    await clickPublish(page, opts.draft, baselineTotal, Boolean(opts.schedule));
     await ctx.storageState({ path: storagePath });
     emit(8, total, "DONE", opts.draft ? "已存入草稿箱" : "成功", true);
     return { platform: "xiaohongshu", reviewUrl: page.url() };
@@ -759,9 +865,11 @@ export async function publishXiaohongshuNote(
   const browser = await launchBrowser(false);
   const ctx = await browser.newContext({ storageState: storagePath, locale: "zh-CN" });
   await applyStealthScript(ctx);
+  await captureShadowRoots(ctx);
   const page = await ctx.newPage();
   try {
     emit(4, total, "OPEN_PUBLISH_PAGE", "打开小红书发布页");
+    const baselineTotal = opts.draft ? null : await readNoteTotal(page);
     await openPublishPage(page, storagePath);
     await clickTab(page, "note");
     emit(5, total, "UPLOAD_START", `${imagePaths.length} 张图片`);
@@ -773,7 +881,7 @@ export async function publishXiaohongshuNote(
     await fillTitleAndDescription(page, opts.title, opts.note ?? opts.title, opts.tags);
     if (opts.schedule) await setSchedule(page, opts.schedule);
     emit(7, total, "PUBLISHING", opts.draft ? "存草稿" : "发布");
-    await clickPublish(page, opts.draft);
+    await clickPublish(page, opts.draft, baselineTotal, Boolean(opts.schedule));
     await ctx.storageState({ path: storagePath });
     emit(8, total, "DONE", opts.draft ? "已存入草稿箱" : "成功", true);
     return { platform: "xiaohongshu", reviewUrl: page.url() };
