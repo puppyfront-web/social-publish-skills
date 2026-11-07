@@ -156,12 +156,15 @@ export function parseFansData(text: string): FansData {
 /** 解析笔记管理列表：标题行 + 日期行 + 5个计数列（阅读/赞/藏/评/享）+ 可选时长与仅自己可见。 */
 export function parseNoteList(text: string): { notes: NoteStat[]; total: number | null } {
   const lines = text.split("\n").map((l) => l.trim());
-  const pinnedIdx = lines.findIndex((l) => l === "置顶");
-  if (pinnedIdx < 0) return { notes: [], total: null };
-  const totalMatch = lines.slice(0, pinnedIdx).find((l) => /^全部\s+\d+$/.test(l));
-  const total = totalMatch ? toInt(totalMatch.split(/\s+/)[1]) : null;
+  // tab 行随改版增减（新版无「置顶」）；起点取「全部 N」行之后最后一条状态 tab。
+  const totalIdx = lines.findIndex((l) => /^全部\s+\d+$/.test(l));
+  if (totalIdx < 0) return { notes: [], total: null };
+  const total = toInt(lines[totalIdx].split(/\s+/)[1]);
+  const statusTabs = ["已发布", "审核中", "未通过", "置顶"];
+  let start = totalIdx;
+  for (let i = totalIdx + 1; i < lines.length && statusTabs.includes(lines[i]); i++) start = i;
 
-  const body = lines.slice(pinnedIdx + 1);
+  const body = lines.slice(start + 1);
   const stopIdx = body.findIndex((l) => l === "正在加载中..." || l === "展开");
   const scoped = body.slice(0, stopIdx >= 0 ? stopIdx : undefined);
 

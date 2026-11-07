@@ -171,5 +171,27 @@ test("parseNoteList maps note rows to typed stats with duration and selfOnly fla
 });
 
 test("parseNoteList returns empty when pinned tab marker is missing", () => {
-  assert.deepEqual(parseNoteList("全部 136\n已发布"), { notes: [], total: null });
+  assert.deepEqual(parseNoteList("全部 136\n已发布"), { notes: [], total: 136 });
+});
+
+test("parseNoteList supports new tab layout without pinned marker", () => {
+  const text = `全部 2
+已发布
+审核中
+未通过
+01:54
+封面PK中
+做了个AI视频平台，直接出片
+2026-11-06 18:06
+102
+4
+5
+0
+0
+正在加载中...`;
+  const { notes, total } = parseNoteList(text);
+  assert.equal(total, 2);
+  assert.equal(notes.length, 1);
+  assert.equal(notes[0].title, "做了个AI视频平台，直接出片");
+  assert.equal(notes[0].views, 102);
 });
